@@ -1,0 +1,14 @@
+[Unit]
+Description=Flight Checks dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/opt/flight-checks
+EnvironmentFile=/etc/flight-checks/env
+ExecStart=/opt/flight-checks/node_modules/.bin/tsx src/server/index.ts
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,11 @@
+[Unit]
+Description=Flight Checks scanner run
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/flight-checks
+EnvironmentFile=/etc/flight-checks/env
+ExecStart=/opt/flight-checks/node_modules/.bin/tsx src/scanner/index.ts
+TimeoutStartSec=900

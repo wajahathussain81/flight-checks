@@ -1,0 +1,37 @@
+{
+  "data": [
+    {
+      "ID": "abc1",
+      "Route": { "OriginAirport": "YYC", "DestinationAirport": "LHR", "Source": "aeroplan" },
+      "Date": "2026-05-14",
+      "YAvailable": true, "YMileageCost": "35000", "YTotalTaxes": 18500, "YRemainingSeats": 4, "YDirect": false,
+      "WAvailable": false, "WMileageCost": "0", "WTotalTaxes": 0, "WRemainingSeats": 0, "WDirect": false,
+      "JAvailable": true, "JMileageCost": "70000", "JTotalTaxes": 22100, "JRemainingSeats": 2, "JDirect": true,
+      "FAvailable": false, "FMileageCost": "0", "FTotalTaxes": 0, "FRemainingSeats": 0, "FDirect": false,
+      "TaxesCurrency": "CAD"
+    },
+    {
+      "ID": "abc2",
+      "Route": { "OriginAirport": "YYC", "DestinationAirport": "CDG", "Source": "flyingblue" },
+      "Date": "2026-09-03",
+      "YAvailable": true, "YMileageCost": "25000", "YTotalTaxes": 0, "YRemainingSeats": 9, "YDirect": false,
+      "WAvailable": false, "WMileageCost": "0", "WTotalTaxes": 0, "WRemainingSeats": 0, "WDirect": false,
+      "JAvailable": false, "JMileageCost": "0", "JTotalTaxes": 0, "JRemainingSeats": 0, "JDirect": false,
+      "FAvailable": false, "FMileageCost": "0", "FTotalTaxes": 0, "FRemainingSeats": 0, "FDirect": false,
+      "TaxesCurrency": "EUR"
+    },
+    {
+      "ID": "abc3",
+      "Route": { "OriginAirport": "YYC", "DestinationAirport": "SYD", "Source": "velocity" },
+      "Date": "2026-03-10",
+      "YAvailable": true, "YMileageCost": "40000", "YTotalTaxes": 9000, "YRemainingSeats": 2, "YDirect": false,
+      "WAvailable": false, "WMileageCost": "0", "WTotalTaxes": 0, "WRemainingSeats": 0, "WDirect": false,
+      "JAvailable": false, "JMileageCost": "0", "JTotalTaxes": 0, "JRemainingSeats": 0, "JDirect": false,
+      "FAvailable": false, "FMileageCost": "0", "FTotalTaxes": 0, "FRemainingSeats": 0, "FDirect": false,
+      "TaxesCurrency": "AUD"
+    }
+  ],
+  "count": 3,
+  "hasMore": false,
+  "cursor": 0
+}

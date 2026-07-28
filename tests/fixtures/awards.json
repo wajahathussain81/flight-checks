@@ -1,0 +1,10 @@
+[
+  { "route": "YYC-LHR", "date": "2026-05-14", "cabin": "business", "program": "aeroplan",
+    "miles": 70000, "taxesCad": 221, "seats": 2, "direct": true },
+  { "route": "YYC-LHR", "date": "2026-05-14", "cabin": "economy", "program": "aeroplan",
+    "miles": 35000, "taxesCad": 185, "seats": 4, "direct": false },
+  { "route": "YYC-CDG", "date": "2026-09-03", "cabin": "economy", "program": "flyingblue",
+    "miles": 25000, "taxesCad": 250, "seats": 9, "direct": false },
+  { "route": "YYC-LHR", "date": "2026-11-20", "cabin": "economy", "program": "aeroplan",
+    "miles": 120000, "taxesCad": 185, "seats": 1, "direct": false }
+]
