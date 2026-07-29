@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { parseCachedSearch, fetchAvailability } from '../../src/scanner/seatsaero.js'
+import { parseCachedSearch, fetchAvailability, probeKey } from '../../src/scanner/seatsaero.js'
 import { loadConfig } from '../../src/core/config.js'
 
 const cfg = loadConfig({
@@ -70,5 +70,42 @@ describe('fetchAvailability', () => {
     await fetchAvailability(cfg, fake, 'Japan')
     const dests = new URL(captured).searchParams.get('destination_airport')
     expect(dests).toBe('NRT,HND,KIX')
+  })
+
+  it('uses a rolling 12-month window, not hard-coded 2026', async () => {
+    let captured = ''
+    const fetchFn = (async (url: RequestInfo | URL) => {
+      captured = String(url)
+      return new Response(JSON.stringify({ data: [], hasMore: false }), { status: 200 })
+    }) as typeof fetch
+    await fetchAvailability(cfg, fetchFn)
+    const params = new URL(captured).searchParams
+    expect(params.get('start_date')).toBe(new Date().toISOString().slice(0, 10))
+    const end = new Date(params.get('end_date')!)
+    const days = (end.getTime() - Date.now()) / 86_400_000
+    expect(days).toBeGreaterThan(360)
+    expect(days).toBeLessThan(370)
+  })
+
+  it('respects cfg.excludedCountries instead of hard-coded Canada', async () => {
+    let captured = ''
+    const fetchFn = (async (url: RequestInfo | URL) => {
+      captured = String(url)
+      return new Response(JSON.stringify({ data: [], hasMore: false }), { status: 200 })
+    }) as typeof fetch
+    await fetchAvailability({ ...cfg, excludedCountries: [] }, fetchFn)
+    const dests = new URL(captured).searchParams.get('destination_airport')!.split(',')
+    expect(dests).toContain('YVR')
+  })
+})
+
+describe('probeKey', () => {
+  it('ok on 200, structured failure on 401', async () => {
+    const ok200 = (async () => new Response('{"data":[]}', { status: 200 })) as typeof fetch
+    const no401 = (async () => new Response('nope', { status: 401 })) as typeof fetch
+    expect((await probeKey('k', ok200)).ok).toBe(true)
+    const bad = await probeKey('k', no401)
+    expect(bad.ok).toBe(false)
+    expect(bad.message).toMatch(/401/)
   })
 })

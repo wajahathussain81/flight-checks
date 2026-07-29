@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { rmSync } from 'node:fs'
 import { runScan } from '../../src/scanner/run.js'
 import { openDb, putSetting } from '../../src/core/db.js'
@@ -51,5 +51,27 @@ describe('runScan --dry-run', () => {
     expect((db.prepare('SELECT COUNT(*) AS n FROM alerts').get() as { n: number }).n).toBe(0)
     const routes = db.prepare('SELECT DISTINCT route FROM snapshots').all() as Array<{ route: string }>
     expect(routes.every(r => r.route === 'YYC-LHR')).toBe(true)
+  })
+
+  it('refuses to run without a seats.aero key', async () => {
+    const r = await runScan({ env: { DB_PATH: ':memory:' } })
+    expect(r.scanId).toBe(-1)
+    expect(r.errors[0]).toMatch(/not configured/)
+  })
+
+  it('records alerts but skips email when digest is not configured', async () => {
+    const dbPath = `${process.env.TMPDIR ?? '/tmp'}/flight-checks-no-digest-${process.pid}.db`
+    rmSync(dbPath, { force: true })
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      const r = await runScan({ dryRun: true, env: { SEATS_AERO_KEY: 'k', DB_PATH: dbPath } })
+      expect(r.alerts).toBeGreaterThan(0)
+      expect(r.errors.find(e => e.startsWith('email:'))).toBeUndefined()
+      expect(log).toHaveBeenCalledWith('[digest] skipped: email not configured or disabled')
+      const db = openDb(dbPath)
+      expect((db.prepare('SELECT COUNT(*) AS n FROM alerts').get() as { n: number }).n).toBe(r.alerts)
+    } finally {
+      log.mockRestore()
+    }
   })
 })

@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { loadConfig, type Config } from '../core/config.js'
+import { configComplete, digestReady, loadConfig, type Config } from '../core/config.js'
 import { loadEffectiveConfig } from '../core/settings.js'
 import { AIRPORT_CITY } from '../core/regions.js'
 import type { AwardRow, ScoredDeal } from '../core/types.js'
@@ -27,6 +27,9 @@ export async function runScan(
   const baseCfg = loadConfig(opts.env ?? process.env)
   const db: DB = openDb(baseCfg.dbPath)
   const cfg: Config = loadEffectiveConfig(db, opts.env ?? process.env)
+  if (!configComplete(cfg)) {
+    return { scanId: -1, snapshots: 0, alerts: 0, errors: ['not configured: missing seats.aero API key'] }
+  }
   const scanId = startScan(db, opts.country ?? 'full')
   const errors: string[] = []
 
@@ -58,14 +61,18 @@ export async function runScan(
   if (!opts.country) {
     alerts.push(...selectAlerts(db, scored, cfg))
     if (alerts.length > 0 || errors.length > 0) {
-      const html = renderDigest(alerts, cfg, errors)
-      const subject = alerts.length > 0
-        ? `✈️ ${alerts.length} deal(s) — best ${Math.max(...alerts.map(a => a.cabin === 'economy' ? a.cppRaw : a.cppConservative)).toFixed(2)} ¢/pt`
-        : '⚠️ Flight Checks scan had errors'
-      if (opts.dryRun) {
-        console.log(`[dry-run] would email: ${subject}`)
+      if (!digestReady(cfg)) {
+        console.log('[digest] skipped: email not configured or disabled')
       } else {
-        try { await sendDigest(cfg, subject, html) } catch (err) { errors.push(`email: ${err}`) }
+        const subject = alerts.length > 0
+          ? `✈️ ${alerts.length} deal(s) — best ${Math.max(...alerts.map(a => a.cabin === 'economy' ? a.cppRaw : a.cppConservative)).toFixed(2)} ¢/pt`
+          : '⚠️ Flight Checks scan had errors'
+        if (opts.dryRun) {
+          console.log(`[dry-run] would email: ${subject}`)
+        } else {
+          const html = renderDigest(alerts, cfg, errors)
+          try { await sendDigest(cfg, subject, html) } catch (err) { errors.push(`email: ${err}`) }
+        }
       }
       recordAlerts(db, scanId, alerts)
     }
