@@ -1,48 +1,49 @@
 # flight-checks
 
-Award-flight deal watcher for 2026 travel. Scans seats.aero for award availability from **YYC** to international destinations only (Canadian destinations are excluded at the request level), prices deals against static per-region cash-fare estimates, ranks everything in **cents per Amex MR (Canada) point**, emails a twice-daily digest via Gmail SMTP, and serves a LAN dashboard app (filter/sort/search deals by continent/country/month/cabin, save/dismiss with notes, trigger scans, edit settings — all from the browser).
+Self-hosted award-flight deal watcher. It scans seats.aero from a configurable home airport, prices deals against static regional cash-fare estimates, ranks them in cents per point, emails an optional digest, and serves a dashboard for filtering, saving, dismissing, and scanning deals.
 
 ## Key documents
 
 - Spec: `docs/superpowers/specs/2026-07-18-flight-checks-design.md`
-- Implementation plan (source of truth while building): `docs/superpowers/plans/2026-07-18-flight-checks.md`
+- Implementation plan: `docs/superpowers/plans/2026-07-18-flight-checks.md`
+- Open-source app plan: `docs/superpowers/plans/2026-07-29-open-source-app.md`
 
 ## Architecture
 
-Single TypeScript ESM package (Node 22, strict mode, `NodeNext` modules). The backend has **no build step** — it runs via `tsx`; only the dashboard is built (Vite). Two entry points share one SQLite DB: the scanner owns `scans`/`snapshots`/`alerts`, the server owns `settings`/`deal_status`, both read everything. UI settings overlay env defaults via `loadEffectiveConfig(db, env)` (`src/core/settings.ts`) — whitelisted keys only, `dbPath` stays env-only. The server triggers manual full scans via `systemctl start --no-block flight-checks-scan.service` (409 if a scan started <30 min ago is unfinished). Country-scoped scans (`POST /api/scan {"country"}` or the per-country button) spawn `tsx src/scanner/index.ts --country <name>` directly: they query seats.aero for just that country's airports, write snapshots with `scans.scope = <country>`, and **never** send digests or record alerts. `/api/deals` serves the newest finished scan whose scope is `full` or matches the requested country; `COUNTRY_CONTINENT` in `regions.ts` powers the continent filter:
+Single TypeScript ESM package (Node 22, strict mode, `NodeNext` modules). The backend runs through `tsx`; Vite builds the dashboard. Two entry points share one SQLite database: the scanner owns `scans`/`snapshots`/`alerts`, while the server owns `settings`/`deal_status`, and both read everything.
 
-- `src/scanner/` — scheduled job: seats.aero pull → prefilter → static fare estimate → score → snapshot → digest
-- `src/server/` — Hono API + static dashboard on port 3000 (`app.ts` is testable, `index.ts` binds)
-- `src/web/` — React + Vite dashboard (builds to `dist/web`)
-- `src/core/` — config, types, valuation math, prefilter, SQLite layer
-- `data/flights.db` — SQLite, snapshots are append-only (powers history charts)
+All application configuration is available through settings, including secrets. `loadEffectiveConfig(db, env)` in `src/core/settings.ts` applies environment variables over database settings over defaults. Secret settings are write-only in API responses. Manual full and country-scoped scans are launched directly as child processes; no systemd scan service is involved. Country-scoped scans set `scans.scope` to the country and never send digests or record alerts. `/api/deals` serves the newest finished full scan or matching country scan.
+
+- `src/scanner/` — seats.aero pull → prefilter → static fare estimate → score → append-only snapshot → optional digest
+- `src/server/` — Hono API, static dashboard host, built-in scheduler, and child-process scan trigger
+- `src/web/` — React and Vite dashboard, setup wizard, settings, deal filters, and history
+- `src/core/` — configuration, settings, types, valuation, prefiltering, airport metadata, and SQLite
+- `data/flights.db` — SQLite data; append-only snapshots power history charts
 
 ## Commands
 
 - `npx vitest run` — full test suite (always run before claiming done)
 - `npx vitest run tests/core/config.test.ts` — single test file (always this form, never watch mode)
-- `npm run scan -- --dry-run` — full pipeline from `tests/fixtures/`, no network
-- `npm run serve` — dashboard server on :3000
-- `npm run build` — Vite build of the dashboard
-- `./deploy/deploy.sh` — rsync to container, install, restart services
+- `npx tsc --noEmit` — strict TypeScript check
+- `npm run scan -- --dry-run` — full pipeline from `tests/fixtures/`, with no network
+- `npm run serve` — dashboard server on port 3000
+- `npm run build` — Vite dashboard build
 
 ## Hard rules
 
-- **No web scraping.** External services are exactly: seats.aero Partner API and Gmail SMTP. Amadeus Self-Service was decommissioned 2026-07-17; cash comps are static per-region estimates (`TYPICAL_CASH_CAD` in `src/core/regions.ts`, applied by `src/scanner/pricing.ts` — swap that module's internals to reintroduce a live pricing API).
-- **Secrets never in git.** Local secrets live in `env.local` (gitignored); the container reads `/etc/flight-checks/env`. `deploy.sh` copies the former to the latter.
-- All money is CAD; the ranking metric is cents per **MR point** (program miles ÷ transfer ratio), never per airline mile.
-- Premium-cabin ranking uses the **conservative** cpp (cash comp capped at 3× economy). Thresholds: economy ≥ 1.75 ¢/pt, premium ≥ 3.0 ¢/pt. Alerts additionally require a minimum net cash value — economy ≥ $400, premium ≥ $1,200 (`MIN_VALUE_ECONOMY`/`MIN_VALUE_PREMIUM`) — to keep short-haul hops out of the digest; they still appear on the dashboard. Digest buckets cap at 10 deals with at most 3 dates per route+cabin (`MAX_PER_ROUTE`). Re-alert an already-alerted deal only if its value improves ≥ 15% or seat count increases.
-- Mock `fetch`/mail transport in tests; never hit live APIs from the test suite.
+- **No web scraping.** External services are the seats.aero Partner API and SMTP. Cash comparisons are static regional estimates in `src/core/regions.ts`; change `src/scanner/pricing.ts` to introduce another pricing source.
+- **Secrets never belong in git.** Local secrets belong in ignored environment files or the settings database.
+- Ranking is cents per point after applying the configured transfer ratio, never cents per airline mile.
+- Premium ranking uses the conservative score. Alert thresholds, minimum values, route caps, and re-alert improvement are configuration.
+- Mock `fetch` and the mail transport in tests. Never hit live APIs from the test suite.
+- Snapshots are append-only.
 
 ## Deployment
 
-Runs in LXC **113** (`flight-checks`, Debian 13) on the user's Proxmox host (`homelab`, <proxmox-ip>). Container IP **<container-ip>**; from the Mac use `ssh flight-checks` (alias in `~/.ssh/config`).
+Docker Compose is the canonical deployment. For bare-node installations, `deploy/` contains an example systemd web unit and deployment script. Scheduling runs in-process with the web server and can be disabled with `SCHEDULER=off` when an external scheduler owns scan timing.
 
-- App dir on container: `/opt/flight-checks`
-- systemd: `flight-checks-web.service` (dashboard), `flight-checks-scan.timer` (07:00 & 19:00 America/Edmonton)
-- Dashboard: http://<container-ip>:3000 (LAN only — do not expose publicly)
-- Logs: `ssh flight-checks "journalctl -u flight-checks-scan.service -n 50"`
+Maintainer-specific deployment notes live in `CLAUDE.local.md` (gitignored).
 
 ## Domain cheat-sheet
 
-Amex MR Canada transfer ratios (config in `src/core/config.ts`, keyed by seats.aero `Source`): aeroplan 1:1, british 1:1, flyingblue 0.75, delta 0.75, etihad 0.75. Rows whose `Source` isn't in this map are dropped; non-CAD taxes fall back to per-region estimates (no currency conversion in v1). Value benchmarks: statement credit 1.0 ¢/pt (floor), Fixed Points Travel ~1.75 ¢/pt (transfer must beat this). User's balance: ~220k MR points (`MR_BALANCE` env).
+The default points program is Amex Membership Rewards Canada. Default transfer ratios, keyed by seats.aero `Source`, are aeroplan 1:1, british 1:1, flyingblue 0.75, delta 0.75, and etihad 0.75. Rows whose source is not configured are dropped. Non-CAD taxes fall back to regional estimates. The default value benchmarks are 1.0 cent per point for statement credit and approximately 1.75 cents per point for fixed-points travel.
