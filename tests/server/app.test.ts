@@ -84,12 +84,12 @@ describe('GET /api/deals filters', () => {
 })
 
 describe('GET /api/meta', () => {
-  it('lists countries and effective mrBalance', async () => {
+  it('lists countries and effective pointsBalance', async () => {
     putSetting(db, 'mrBalance', '150000')
     const meta = await (await createApp(db, { env: ENV }).request('/api/meta')).json()
     expect(meta.countries).toContain('UK')
     expect(meta.countries).toContain('Japan')
-    expect(meta.mrBalance).toBe(150000)
+    expect(meta.pointsBalance).toBe(150000)
   })
 })
 

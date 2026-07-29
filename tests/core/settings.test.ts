@@ -13,7 +13,7 @@ beforeEach(() => { db = openDb(':memory:') })
 describe('validateSetting', () => {
   it('rejects unknown keys', () => expect(validateSetting('dbPath', 'x')).toMatch(/unknown/i))
   it('rejects non-positive numbers', () => {
-    expect(validateSetting('mrBalance', '-5')).toBeTruthy()
+    expect(validateSetting('pointsBalance', '-5')).toBeTruthy()
     expect(validateSetting('thresholds.economy', 'abc')).toBeTruthy()
   })
   it('requires integer maxPerRoute', () => {
@@ -42,7 +42,7 @@ describe('loadEffectiveConfig', () => {
     expect(cfg.thresholds.economy).toBe(2.5)
     expect(cfg.thresholds.premiumConservative).toBe(3.0)
     expect(cfg.maxPerRoute).toBe(5)
-    expect(cfg.mrBalance).toBe(220000)
+    expect(cfg.pointsBalance).toBe(220000)
     expect(cfg.digestTo).toBe('other@example.com')
   })
 })

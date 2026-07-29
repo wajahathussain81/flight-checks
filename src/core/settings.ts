@@ -4,7 +4,7 @@ import { getSettings, type DB } from './db.js'
 export const SETTING_KEYS = [
   'thresholds.economy', 'thresholds.premiumConservative',
   'minValue.economy', 'minValue.premium',
-  'maxPerRoute', 'mrBalance', 'alertImprovement', 'digestTo',
+  'maxPerRoute', 'pointsBalance', 'alertImprovement', 'digestTo',
 ] as const
 
 export type SettingKey = (typeof SETTING_KEYS)[number]
@@ -29,7 +29,7 @@ export function loadEffectiveConfig(db: DB, env: Record<string, string | undefin
   cfg.minValue.economy = num('minValue.economy') ?? cfg.minValue.economy
   cfg.minValue.premium = num('minValue.premium') ?? cfg.minValue.premium
   cfg.maxPerRoute = num('maxPerRoute') ?? cfg.maxPerRoute
-  cfg.mrBalance = num('mrBalance') ?? cfg.mrBalance
+  cfg.pointsBalance = num('pointsBalance') ?? num('mrBalance') ?? cfg.pointsBalance
   cfg.alertImprovement = num('alertImprovement') ?? cfg.alertImprovement
   cfg.digestTo = s.digestTo ?? cfg.digestTo
   return cfg

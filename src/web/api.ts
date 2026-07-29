@@ -23,7 +23,7 @@ export const fetchHistory = (route: string, cabin: string) =>
 export const fetchScans = () => get<{ scans: ScanRow[] }>('/api/scans').then(r => r.scans)
 
 export interface Meta {
-  countries: string[]; continents: string[]; countryContinents: Record<string, string>; mrBalance: number
+  countries: string[]; continents: string[]; countryContinents: Record<string, string>; pointsBalance: number
 }
 export interface ShortlistRow { alertKey: string; note: string; current: DealRow | null }
 export interface SettingEntry { value: number | string; default: number | string; overridden: boolean }

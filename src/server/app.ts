@@ -52,7 +52,7 @@ export function createApp(
     const countries = [...new Set(Object.values(AIRPORT_CITY).map(i => i.country))].sort()
     const continents = [...new Set(countries.map(continentOf))].sort()
     const countryContinents = Object.fromEntries(countries.map(cn => [cn, continentOf(cn)]))
-    return c.json({ countries, continents, countryContinents, mrBalance: loadEffectiveConfig(db, env).mrBalance })
+    return c.json({ countries, continents, countryContinents, pointsBalance: loadEffectiveConfig(db, env).pointsBalance })
   })
 
   app.post('/api/deals/status', async c => {
@@ -85,7 +85,7 @@ export function createApp(
         case 'minValue.economy': return cfg.minValue.economy
         case 'minValue.premium': return cfg.minValue.premium
         case 'maxPerRoute': return cfg.maxPerRoute
-        case 'mrBalance': return cfg.mrBalance
+        case 'pointsBalance': return cfg.pointsBalance
         case 'alertImprovement': return cfg.alertImprovement
         default: return cfg.digestTo
       }

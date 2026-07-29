@@ -199,7 +199,7 @@ function DealsTab({
         <tbody>
           {deals.map(deal => {
             const cpp = deal.cabin === 'economy' ? deal.cpp_raw : deal.cpp_conservative
-            const rowClasses = [deal.mr_points <= meta.mrBalance ? 'fits' : '', deal.status === 'dismissed' ? 'dimmed' : '']
+            const rowClasses = [deal.mr_points <= meta.pointsBalance ? 'fits' : '', deal.status === 'dismissed' ? 'dimmed' : '']
               .filter(Boolean).join(' ')
             return (
               <tr
@@ -453,7 +453,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('deals')
   const [picked, setPicked] = useState<{ route: string; cabin: string }>({ route: '', cabin: 'economy' })
   const [banner, setBanner] = useState<string | null>(null)
-  const [meta, setMeta] = useState<Meta>({ countries: [], continents: [], countryContinents: {}, mrBalance: 0 })
+  const [meta, setMeta] = useState<Meta>({ countries: [], continents: [], countryContinents: {}, pointsBalance: 0 })
   const onError = useCallback((error: Error) => setBanner(error.message), [])
   const onPick = useCallback((route: string, cabin: string) => {
     setPicked({ route, cabin })
