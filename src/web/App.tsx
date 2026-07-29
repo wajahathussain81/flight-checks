@@ -6,6 +6,7 @@ import {
   fetchScans,
   fetchSettings,
   fetchShortlist,
+  fetchStatus,
   postDealStatus,
   putSettingValue,
   triggerScan,
@@ -15,8 +16,10 @@ import {
   type ScanRow,
   type SettingEntry,
   type ShortlistRow,
+  type Status,
 } from './api.js'
 import { Sparkline } from './Sparkline.js'
+import { Wizard } from './Wizard.js'
 import { airportLabel } from '../core/regions.js'
 
 type Tab = 'deals' | 'shortlist' | 'history' | 'runs' | 'settings'
@@ -450,6 +453,7 @@ function SettingsTab({ onError }: { onError: (error: Error) => void }) {
 }
 
 export default function App() {
+  const [status, setStatus] = useState<Status | null>(null)
   const [tab, setTab] = useState<Tab>('deals')
   const [picked, setPicked] = useState<{ route: string; cabin: string }>({ route: '', cabin: 'economy' })
   const [banner, setBanner] = useState<string | null>(null)
@@ -461,8 +465,16 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    fetchMeta().then(setMeta).catch(error => onError(asError(error)))
+    fetchStatus().then(setStatus).catch(error => onError(asError(error)))
   }, [onError])
+
+  useEffect(() => {
+    if (!status?.configured) return
+    fetchMeta().then(setMeta).catch(error => onError(asError(error)))
+  }, [status?.configured, onError])
+
+  if (!status) return null
+  if (!status.configured) return <Wizard onDone={() => { void fetchStatus().then(setStatus) }} />
 
   return (
     <div>

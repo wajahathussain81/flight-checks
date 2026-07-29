@@ -9,6 +9,7 @@ export interface ScanRow {
   id: number; started_at: string; finished_at: string | null
   rows_pulled: number; finalists: number; errors: string; scope: string
 }
+export interface Status { configured: boolean; digestReady: boolean }
 
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(path)
@@ -21,6 +22,7 @@ export const fetchDeals = (cabin?: string) =>
 export const fetchHistory = (route: string, cabin: string) =>
   get<{ points: HistoryPoint[] }>(`/api/history?route=${route}&cabin=${cabin}`).then(r => r.points)
 export const fetchScans = () => get<{ scans: ScanRow[] }>('/api/scans').then(r => r.scans)
+export const fetchStatus = () => get<Status>('/api/status')
 
 export interface Meta {
   countries: string[]; continents: string[]; countryContinents: Record<string, string>; pointsBalance: number
@@ -57,6 +59,12 @@ async function send(path: string, method: string, body: unknown): Promise<void> 
 export const postDealStatus = (alertKey: string, status: 'saved' | 'dismissed' | null, note = '') =>
   send('/api/deals/status', 'POST', { alertKey, status, note })
 export const putSettingValue = (key: string, value: string | null) => send('/api/settings', 'PUT', { key, value })
+export const putSettingsBatch = (settings: Array<{ key: string; value: string | null }>) =>
+  send('/api/settings', 'PUT', { settings })
+export const testSeatsAero = (key: string) =>
+  fetch('/api/test/seatsaero', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key }) }).then(r => r.json()) as Promise<{ ok: boolean; message: string }>
+export const testEmail = (smtp: { host: string; port: number; user: string; password: string }, digestTo: string) =>
+  fetch('/api/test/email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ smtp, digestTo }) }).then(r => r.json()) as Promise<{ ok: boolean; message: string }>
 export const triggerScan = async (country?: string): Promise<void> => {
   const res = await fetch('/api/scan', {
     method: 'POST',
