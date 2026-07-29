@@ -6,6 +6,7 @@ import {
   fetchScans,
   fetchSettings,
   fetchShortlist,
+  fetchStatus,
   postDealStatus,
   putSettingValue,
   triggerScan,
@@ -15,8 +16,10 @@ import {
   type ScanRow,
   type SettingEntry,
   type ShortlistRow,
+  type Status,
 } from './api.js'
 import { Sparkline } from './Sparkline.js'
+import { Wizard } from './Wizard.js'
 import { airportLabel } from '../core/regions.js'
 
 type Tab = 'deals' | 'shortlist' | 'history' | 'runs' | 'settings'
@@ -199,7 +202,7 @@ function DealsTab({
         <tbody>
           {deals.map(deal => {
             const cpp = deal.cabin === 'economy' ? deal.cpp_raw : deal.cpp_conservative
-            const rowClasses = [deal.mr_points <= meta.mrBalance ? 'fits' : '', deal.status === 'dismissed' ? 'dimmed' : '']
+            const rowClasses = [deal.mr_points <= meta.pointsBalance ? 'fits' : '', deal.status === 'dismissed' ? 'dimmed' : '']
               .filter(Boolean).join(' ')
             return (
               <tr
@@ -392,6 +395,43 @@ function RunsTab({ onError }: { onError: (error: Error) => void }) {
   )
 }
 
+const SETTINGS_GROUPS = [
+  {
+    heading: 'Scanning',
+    keys: ['origin', 'excludedCountries', 'scanSchedule', 'maxPerRoute'],
+  },
+  {
+    heading: 'Points',
+    keys: ['pointsProgram', 'pointsBalance', 'currency', 'ratios'],
+  },
+  {
+    heading: 'Thresholds',
+    keys: [
+      'thresholds.economy',
+      'thresholds.premiumConservative',
+      'minValue.economy',
+      'minValue.premium',
+      'alertImprovement',
+    ],
+  },
+  {
+    heading: 'Email',
+    keys: ['digestEnabled', 'digestTo', 'smtp.host', 'smtp.port', 'smtp.user', 'smtp.password'],
+  },
+  {
+    heading: 'Connection',
+    keys: ['seatsAeroKey'],
+  },
+] as const
+
+const JSON_SETTINGS = new Set(['ratios', 'excludedCountries', 'scanSchedule'])
+
+const settingInputValue = (key: string, entry: SettingEntry): string => {
+  if ('secret' in entry) return ''
+  const value = String(entry.value)
+  return JSON_SETTINGS.has(key) ? JSON.stringify(JSON.parse(value), null, 2) : value
+}
+
 function SettingsTab({ onError }: { onError: (error: Error) => void }) {
   const [settings, setSettings] = useState<Record<string, SettingEntry>>({})
   const [inputs, setInputs] = useState<Record<string, string>>({})
@@ -400,7 +440,7 @@ function SettingsTab({ onError }: { onError: (error: Error) => void }) {
     try {
       const next = await fetchSettings()
       setSettings(next)
-      setInputs(Object.fromEntries(Object.entries(next).map(([key, entry]) => [key, String(entry.value)])))
+      setInputs(Object.fromEntries(Object.entries(next).map(([key, entry]) => [key, settingInputValue(key, entry)])))
     } catch (error) {
       onError(asError(error))
     }
@@ -409,6 +449,8 @@ function SettingsTab({ onError }: { onError: (error: Error) => void }) {
   useEffect(() => { void loadSettings() }, [loadSettings])
 
   const save = async (key: string) => {
+    const entry = settings[key]
+    if (!entry || ('secret' in entry && !inputs[key])) return
     try {
       await putSettingValue(key, inputs[key] ?? '')
       await loadSettings()
@@ -428,32 +470,71 @@ function SettingsTab({ onError }: { onError: (error: Error) => void }) {
 
   return (
     <div>
-      {Object.entries(settings).map(([key, entry]) => (
-        <div className="settings-row" key={key}>
-          <label htmlFor={`setting-${key}`}>{key}</label>
-          <input
-            id={`setting-${key}`}
-            value={inputs[key] ?? String(entry.value)}
-            onChange={event => setInputs(current => ({ ...current, [key]: event.target.value }))}
-          />
-          <button onClick={() => void save(key)}>Save</button>
-          {entry.overridden && (
-            <>
-              <button onClick={() => void reset(key)}>Reset</button>
-              <span>default: {entry.default}</span>
-            </>
-          )}
-        </div>
+      {SETTINGS_GROUPS.map(group => (
+        <section className="settings-group" key={group.heading}>
+          <h2>{group.heading}</h2>
+          {group.keys.map(key => {
+            const entry = settings[key]
+            if (!entry) return null
+            const secret = 'secret' in entry
+            const value = inputs[key] ?? settingInputValue(key, entry)
+            return (
+              <div className="settings-row" key={key}>
+                <label htmlFor={`setting-${key}`}>{key}</label>
+                {secret ? (
+                  <input
+                    id={`setting-${key}`}
+                    type="password"
+                    value={value}
+                    placeholder={entry.set ? '••••• (set)' : 'not set'}
+                    onChange={event => setInputs(current => ({ ...current, [key]: event.target.value }))}
+                  />
+                ) : JSON_SETTINGS.has(key) ? (
+                  <textarea
+                    id={`setting-${key}`}
+                    value={value}
+                    onChange={event => setInputs(current => ({ ...current, [key]: event.target.value }))}
+                  />
+                ) : key === 'digestEnabled' ? (
+                  <select
+                    id={`setting-${key}`}
+                    value={value}
+                    onChange={event => setInputs(current => ({ ...current, [key]: event.target.value }))}
+                  >
+                    <option value="true">true</option>
+                    <option value="false">false</option>
+                  </select>
+                ) : (
+                  <input
+                    id={`setting-${key}`}
+                    value={value}
+                    onChange={event => setInputs(current => ({ ...current, [key]: event.target.value }))}
+                  />
+                )}
+                <button disabled={secret && !value} onClick={() => void save(key)}>Save</button>
+                {secret ? (
+                  <button onClick={() => void reset(key)}>Clear</button>
+                ) : entry.overridden && (
+                  <>
+                    <button onClick={() => void reset(key)}>Reset</button>
+                    <span>default: {String(entry.default)}</span>
+                  </>
+                )}
+              </div>
+            )
+          })}
+        </section>
       ))}
     </div>
   )
 }
 
 export default function App() {
+  const [status, setStatus] = useState<Status | null>(null)
   const [tab, setTab] = useState<Tab>('deals')
   const [picked, setPicked] = useState<{ route: string; cabin: string }>({ route: '', cabin: 'economy' })
   const [banner, setBanner] = useState<string | null>(null)
-  const [meta, setMeta] = useState<Meta>({ countries: [], continents: [], countryContinents: {}, mrBalance: 0 })
+  const [meta, setMeta] = useState<Meta>({ countries: [], continents: [], countryContinents: {}, pointsBalance: 0 })
   const onError = useCallback((error: Error) => setBanner(error.message), [])
   const onPick = useCallback((route: string, cabin: string) => {
     setPicked({ route, cabin })
@@ -461,8 +542,16 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    fetchMeta().then(setMeta).catch(error => onError(asError(error)))
+    fetchStatus().then(setStatus).catch(error => onError(asError(error)))
   }, [onError])
+
+  useEffect(() => {
+    if (!status?.configured) return
+    fetchMeta().then(setMeta).catch(error => onError(asError(error)))
+  }, [status?.configured, onError])
+
+  if (!status) return null
+  if (!status.configured) return <Wizard onDone={() => { void fetchStatus().then(setStatus) }} />
 
   return (
     <div>

@@ -3,5 +3,6 @@ data/
 dist/
 .env
 env.local
+CLAUDE.local.md
 *.log
 .DS_Store

@@ -21,10 +21,10 @@ npm ci
 npm run build
 mkdir -p data /etc/flight-checks
 [ -f /etc/flight-checks/env ] || { cp deploy/env.example /etc/flight-checks/env; chmod 600 /etc/flight-checks/env; echo "WARNING: /etc/flight-checks/env created from example — fill in real keys"; }
-cp deploy/flight-checks-scan.service deploy/flight-checks-scan.timer deploy/flight-checks-web.service /etc/systemd/system/
+systemctl disable --now flight-checks-scan.timer 2>/dev/null || true
+cp deploy/flight-checks-web.service /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable --now flight-checks-web.service flight-checks-scan.timer
+systemctl enable --now flight-checks-web.service
 systemctl restart flight-checks-web.service
-echo "deployed. timers:"
-systemctl list-timers flight-checks-scan.timer --no-pager
+echo "deployed. web service restarted; scans use the built-in scheduler."
 REMOTE

@@ -1,8 +1,11 @@
 import { Hono } from 'hono'
 import { getSettings, getDealStatuses, setDealStatus, putSetting, deleteSetting, alertKey, type DB } from '../core/db.js'
-import { SETTING_KEYS, validateSetting, loadEffectiveConfig } from '../core/settings.js'
-import { loadConfig } from '../core/config.js'
+import { SETTING_KEYS, SECRET_KEYS, validateSetting, loadEffectiveConfig, type SettingKey } from '../core/settings.js'
+import { defaultConfig, configComplete, digestReady, type Config, type SmtpConfig } from '../core/config.js'
 import { AIRPORT_CITY, airportLabel, COUNTRY_CONTINENT, continentOf } from '../core/regions.js'
+import { probeKey } from '../scanner/seatsaero.js'
+import type { MailTransport } from '../scanner/digest.js'
+import nodemailer from 'nodemailer'
 
 interface SnapshotRow {
   id: number; scan_id: number; route: string; date: string; cabin: string; program: string
@@ -13,11 +16,48 @@ interface SnapshotRow {
 const rankOf = (d: SnapshotRow): number => (d.cabin === 'economy' ? d.cpp_raw : d.cpp_conservative)
 const destOf = (route: string): string => route.split('-')[1]
 
+const valueOf = (cfg: Config, key: SettingKey): number | string | boolean => {
+  switch (key) {
+    case 'thresholds.economy': return cfg.thresholds.economy
+    case 'thresholds.premiumConservative': return cfg.thresholds.premiumConservative
+    case 'minValue.economy': return cfg.minValue.economy
+    case 'minValue.premium': return cfg.minValue.premium
+    case 'maxPerRoute': return cfg.maxPerRoute
+    case 'pointsBalance': return cfg.pointsBalance
+    case 'alertImprovement': return cfg.alertImprovement
+    case 'digestTo': return cfg.digestTo
+    case 'origin': return cfg.origin
+    case 'pointsProgram': return cfg.pointsProgram
+    case 'currency': return cfg.currency
+    case 'excludedCountries': return JSON.stringify(cfg.excludedCountries)
+    case 'ratios': return JSON.stringify(cfg.ratios)
+    case 'scanSchedule': return JSON.stringify(cfg.scanSchedule)
+    case 'digestEnabled': return cfg.digestEnabled
+    case 'smtp.host': return cfg.smtp.host
+    case 'smtp.port': return cfg.smtp.port
+    case 'smtp.user': return cfg.smtp.user
+    case 'seatsAeroKey': return cfg.seatsAeroKey
+    case 'smtp.password': return cfg.smtp.password
+  }
+}
+
 export function createApp(
   db: DB,
-  opts: { startScan?: (country?: string) => void; env?: Record<string, string | undefined> } = {},
+  opts: {
+    startScan?: (country?: string) => void
+    onSettingsChanged?: () => void
+    env?: Record<string, string | undefined>
+    probe?: typeof probeKey
+    mailTransport?: (smtp: SmtpConfig) => MailTransport
+  } = {},
 ): Hono {
   const env = opts.env ?? process.env
+  const probe = opts.probe ?? probeKey
+  const makeTransport = opts.mailTransport ?? ((smtp: SmtpConfig): MailTransport =>
+    nodemailer.createTransport({
+      host: smtp.host, port: smtp.port, secure: smtp.port === 465,
+      auth: { user: smtp.user, pass: smtp.password },
+    }))
   const app = new Hono()
 
   app.get('/api/deals', c => {
@@ -52,7 +92,12 @@ export function createApp(
     const countries = [...new Set(Object.values(AIRPORT_CITY).map(i => i.country))].sort()
     const continents = [...new Set(countries.map(continentOf))].sort()
     const countryContinents = Object.fromEntries(countries.map(cn => [cn, continentOf(cn)]))
-    return c.json({ countries, continents, countryContinents, mrBalance: loadEffectiveConfig(db, env).mrBalance })
+    return c.json({ countries, continents, countryContinents, pointsBalance: loadEffectiveConfig(db, env).pointsBalance })
+  })
+
+  app.get('/api/status', c => {
+    const cfg = loadEffectiveConfig(db, env)
+    return c.json({ configured: configComplete(cfg), digestReady: digestReady(cfg) })
   })
 
   app.post('/api/deals/status', async c => {
@@ -75,43 +120,88 @@ export function createApp(
   })
 
   app.get('/api/settings', c => {
-    const base = loadConfig(env)
+    const base = defaultConfig()
     const eff = loadEffectiveConfig(db, env)
     const overrides = getSettings(db)
-    const pick = (cfg: typeof base, key: string): number | string => {
-      switch (key) {
-        case 'thresholds.economy': return cfg.thresholds.economy
-        case 'thresholds.premiumConservative': return cfg.thresholds.premiumConservative
-        case 'minValue.economy': return cfg.minValue.economy
-        case 'minValue.premium': return cfg.minValue.premium
-        case 'maxPerRoute': return cfg.maxPerRoute
-        case 'mrBalance': return cfg.mrBalance
-        case 'alertImprovement': return cfg.alertImprovement
-        default: return cfg.digestTo
+    const settings = Object.fromEntries(SETTING_KEYS.map(k => {
+      const overridden = k in overrides
+      if ((SECRET_KEYS as readonly string[]).includes(k)) {
+        return [k, { secret: true, set: valueOf(eff, k) !== '', overridden }]
       }
-    }
-    const settings = Object.fromEntries(SETTING_KEYS.map(k => [k, { value: pick(eff, k), default: pick(base, k), overridden: k in overrides }]))
+      return [k, { value: valueOf(eff, k), default: valueOf(base, k), overridden }]
+    }))
     return c.json({ settings })
   })
 
   app.put('/api/settings', async c => {
-    const body = await c.req.json().catch(() => null) as { key?: string; value?: string | null } | null
+    const body = await c.req.json().catch(() => null) as {
+      key?: string
+      value?: string | null
+      settings?: Array<{ key: string; value: string | null }>
+    } | null
+    if (Array.isArray(body?.settings)) {
+      for (const setting of body.settings) {
+        const err = setting.value === null
+          ? (!(SETTING_KEYS as readonly string[]).includes(setting.key) ? `unknown setting: ${setting.key}` : null)
+          : validateSetting(setting.key, String(setting.value))
+        if (err) return c.json({ error: err, key: setting.key }, 400)
+      }
+      db.transaction((settings: Array<{ key: string; value: string | null }>) => {
+        for (const setting of settings) {
+          if (setting.value === null) deleteSetting(db, setting.key)
+          else putSetting(db, setting.key, String(setting.value))
+        }
+      })(body.settings)
+      opts.onSettingsChanged?.()
+      return c.json({ ok: true })
+    }
     if (!body?.key) return c.json({ error: 'key required' }, 400)
     if (body.value === null || body.value === undefined) {
       if (!(SETTING_KEYS as readonly string[]).includes(body.key)) return c.json({ error: `unknown setting: ${body.key}` }, 400)
       deleteSetting(db, body.key)
+      opts.onSettingsChanged?.()
       return c.json({ ok: true })
     }
     const err = validateSetting(body.key, String(body.value))
     if (err) return c.json({ error: err }, 400)
     putSetting(db, body.key, String(body.value))
+    opts.onSettingsChanged?.()
     return c.json({ ok: true })
+  })
+
+  app.post('/api/test/seatsaero', async c => {
+    const body = await c.req.json().catch(() => ({})) as { key?: string }
+    const key = body.key || loadEffectiveConfig(db, env).seatsAeroKey
+    if (!key) return c.json({ ok: false, message: 'no key provided or stored' }, 400)
+    return c.json(await probe(key))
+  })
+
+  app.post('/api/test/email', async c => {
+    const body = await c.req.json().catch(() => ({})) as { smtp?: Partial<SmtpConfig>; digestTo?: string }
+    const cfg = loadEffectiveConfig(db, env)
+    const smtp = { ...cfg.smtp, ...body.smtp }
+    const to = body.digestTo || cfg.digestTo
+    if (!smtp.user || !smtp.password || !to) {
+      return c.json({ ok: false, message: 'smtp user, password, and recipient required' }, 400)
+    }
+    try {
+      await makeTransport(smtp).sendMail({
+        from: `Flight Checks <${smtp.user}>`,
+        to,
+        subject: 'Flight Checks test email',
+        html: '<p>It works ✅</p>',
+      })
+      return c.json({ ok: true, message: `sent to ${to}` })
+    } catch (err) {
+      return c.json({ ok: false, message: String(err) })
+    }
   })
 
   app.post('/api/scan', async c => {
     const body = await c.req.json().catch(() => null) as { country?: string } | null
     const country = body?.country
     if (country && !(country in COUNTRY_CONTINENT)) return c.json({ error: `unknown country: ${country}` }, 400)
+    if (!configComplete(loadEffectiveConfig(db, env))) return c.json({ error: 'not configured' }, 409)
     const open = db.prepare('SELECT started_at FROM scans WHERE finished_at IS NULL ORDER BY id DESC LIMIT 1')
       .get() as { started_at: string } | undefined
     if (open && Date.now() - Date.parse(open.started_at) < 30 * 60_000) {

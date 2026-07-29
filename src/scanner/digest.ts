@@ -43,13 +43,13 @@ const fmt = new Intl.NumberFormat('en-CA')
 
 function dealRow(d: ScoredDeal, cfg: Config): string {
   const fire = d.cabin !== 'economy' && d.cppConservative >= cfg.thresholds.premiumConservative ? ' 🔥' : ''
-  const budget = d.mrPoints <= cfg.mrBalance ? ` ✅ fits ${fmt.format(cfg.mrBalance)}` : ''
+  const budget = d.mrPoints <= cfg.pointsBalance ? ` ✅ fits ${fmt.format(cfg.pointsBalance)}` : ''
   const value = d.cabin === 'economy'
     ? `${d.cppRaw.toFixed(2)} ¢/pt`
     : `${d.cppConservative.toFixed(2)} ¢/pt conservative (${d.cppRaw.toFixed(2)} raw)`
   return `<tr>
     <td>${d.route}<br><small style="color:#666">${airportLabel(d.route.split('-')[1])}</small></td><td>${d.date}</td><td>${d.cabin}${fire}</td><td>${d.program}</td>
-    <td>${fmt.format(d.mrPoints)} MR + $${d.taxesCad.toFixed(0)}</td>
+    <td>${fmt.format(d.mrPoints)} pts + $${d.taxesCad.toFixed(0)}</td>
     <td>vs $${fmt.format(Math.round(d.cashCad))} cash</td>
     <td><b>${value}</b>${budget}</td>
     <td>${d.seats} seat(s)${d.direct ? ', direct' : ''}</td>
@@ -67,7 +67,7 @@ export function renderDigest(deals: ScoredDeal[], cfg: Config, errors: string[] 
         ${rows}</table>`
     : '<p>No deals cleared the thresholds this scan.</p>'
   return `<h2>Flight Checks digest</h2>${body}
-    <p style="color:#666">Benchmarks: statement credit 1.00 ¢/pt · Fixed Points Travel ~1.75 ¢/pt.</p>
+    <p style="color:#666">Ranked in cents per ${cfg.pointsProgram} point.</p>
     ${errorBlock}`
 }
 
@@ -75,21 +75,19 @@ export interface MailTransport {
   sendMail(opts: { from: string; to: string; subject: string; html: string }): Promise<unknown>
 }
 
-function gmailTransport(cfg: Config): MailTransport {
+function smtpTransport(cfg: Config): MailTransport {
   return nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 465,
-    secure: true,
-    auth: { user: cfg.gmailUser, pass: cfg.gmailAppPassword },
+    host: cfg.smtp.host, port: cfg.smtp.port, secure: cfg.smtp.port === 465,
+    auth: { user: cfg.smtp.user, pass: cfg.smtp.password },
   })
 }
 
 export async function sendDigest(
   cfg: Config, subject: string, html: string,
-  transport: MailTransport = gmailTransport(cfg),
+  transport: MailTransport = smtpTransport(cfg),
 ): Promise<void> {
   await transport.sendMail({
-    from: `Flight Checks <${cfg.gmailUser}>`,
+    from: `Flight Checks <${cfg.smtp.user}>`,
     to: cfg.digestTo,
     subject,
     html,

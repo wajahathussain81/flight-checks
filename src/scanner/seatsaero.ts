@@ -3,6 +3,7 @@ import type { AwardRow, Cabin } from '../core/types.js'
 import { regionOf, TAX_ESTIMATE_CAD, AIRPORT_REGION, AIRPORT_CITY } from '../core/regions.js'
 
 const BASE = 'https://seats.aero/partnerapi'
+const isoDay = (d: Date): string => d.toISOString().slice(0, 10)
 
 const CABIN_FIELDS: Array<{ cabin: Cabin; prefix: 'Y' | 'W' | 'J' | 'F' }> = [
   { cabin: 'economy', prefix: 'Y' },
@@ -46,9 +47,9 @@ export function parseCachedSearch(json: any, cfg: Config): AwardRow[] {
 export async function fetchAvailability(cfg: Config, fetchFn: typeof fetch = fetch, country?: string): Promise<AwardRow[]> {
   const rows: AwardRow[] = []
   // Cached search returns nothing without explicit destinations.
-  // International only: skip the origin and all Canadian destinations.
+  // Skip the origin and destinations in excluded countries.
   const destinations = Object.keys(AIRPORT_REGION)
-    .filter(a => a !== cfg.origin && AIRPORT_CITY[a]?.country !== 'Canada')
+    .filter(a => a !== cfg.origin && !cfg.excludedCountries.includes(AIRPORT_CITY[a]?.country ?? ''))
     .filter(a => !country || AIRPORT_CITY[a]?.country === country)
     .join(',')
   const take = 1000
@@ -58,8 +59,8 @@ export async function fetchAvailability(cfg: Config, fetchFn: typeof fetch = fet
     const url = new URL(`${BASE}/search`)
     url.searchParams.set('origin_airport', cfg.origin)
     url.searchParams.set('destination_airport', destinations)
-    url.searchParams.set('start_date', '2026-01-01')
-    url.searchParams.set('end_date', '2026-12-31')
+    url.searchParams.set('start_date', isoDay(new Date()))
+    url.searchParams.set('end_date', isoDay(new Date(Date.now() + 365 * 86_400_000)))
     url.searchParams.set('take', String(take))
     url.searchParams.set('sources', Object.keys(cfg.ratios).join(','))
     if (skip > 0) url.searchParams.set('skip', String(skip))
@@ -73,4 +74,20 @@ export async function fetchAvailability(cfg: Config, fetchFn: typeof fetch = fet
     skip += take
   }
   return rows
+}
+
+export async function probeKey(key: string, fetchFn: typeof fetch = fetch): Promise<{ ok: boolean; message: string }> {
+  const url = new URL(`${BASE}/search`)
+  url.searchParams.set('origin_airport', 'YYZ')
+  url.searchParams.set('destination_airport', 'LHR')
+  url.searchParams.set('start_date', new Date().toISOString().slice(0, 10))
+  url.searchParams.set('end_date', new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10))
+  url.searchParams.set('take', '1')
+  try {
+    const res = await fetchFn(url.toString(), { headers: { 'Partner-Authorization': key, Accept: 'application/json' } })
+    if (res.ok) return { ok: true, message: 'seats.aero key accepted' }
+    return { ok: false, message: `seats.aero rejected the key (HTTP ${res.status})` }
+  } catch (err) {
+    return { ok: false, message: `could not reach seats.aero: ${err}` }
+  }
 }
