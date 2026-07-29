@@ -28,7 +28,9 @@ export interface Meta {
   countries: string[]; continents: string[]; countryContinents: Record<string, string>; pointsBalance: number
 }
 export interface ShortlistRow { alertKey: string; note: string; current: DealRow | null }
-export interface SettingEntry { value: number | string; default: number | string; overridden: boolean }
+export type SettingEntry =
+  | { value: number | string | boolean; default: number | string | boolean; overridden: boolean }
+  | { secret: true; set: boolean; overridden: boolean }
 
 export interface DealQuery {
   cabin?: string; continent?: string; country?: string; month?: string; minCpp?: string; q?: string

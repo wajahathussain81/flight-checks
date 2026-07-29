@@ -395,6 +395,43 @@ function RunsTab({ onError }: { onError: (error: Error) => void }) {
   )
 }
 
+const SETTINGS_GROUPS = [
+  {
+    heading: 'Scanning',
+    keys: ['origin', 'excludedCountries', 'scanSchedule', 'maxPerRoute'],
+  },
+  {
+    heading: 'Points',
+    keys: ['pointsProgram', 'pointsBalance', 'currency', 'ratios'],
+  },
+  {
+    heading: 'Thresholds',
+    keys: [
+      'thresholds.economy',
+      'thresholds.premiumConservative',
+      'minValue.economy',
+      'minValue.premium',
+      'alertImprovement',
+    ],
+  },
+  {
+    heading: 'Email',
+    keys: ['digestEnabled', 'digestTo', 'smtp.host', 'smtp.port', 'smtp.user', 'smtp.password'],
+  },
+  {
+    heading: 'Connection',
+    keys: ['seatsAeroKey'],
+  },
+] as const
+
+const JSON_SETTINGS = new Set(['ratios', 'excludedCountries', 'scanSchedule'])
+
+const settingInputValue = (key: string, entry: SettingEntry): string => {
+  if ('secret' in entry) return ''
+  const value = String(entry.value)
+  return JSON_SETTINGS.has(key) ? JSON.stringify(JSON.parse(value), null, 2) : value
+}
+
 function SettingsTab({ onError }: { onError: (error: Error) => void }) {
   const [settings, setSettings] = useState<Record<string, SettingEntry>>({})
   const [inputs, setInputs] = useState<Record<string, string>>({})
@@ -403,7 +440,7 @@ function SettingsTab({ onError }: { onError: (error: Error) => void }) {
     try {
       const next = await fetchSettings()
       setSettings(next)
-      setInputs(Object.fromEntries(Object.entries(next).map(([key, entry]) => [key, String(entry.value)])))
+      setInputs(Object.fromEntries(Object.entries(next).map(([key, entry]) => [key, settingInputValue(key, entry)])))
     } catch (error) {
       onError(asError(error))
     }
@@ -412,6 +449,8 @@ function SettingsTab({ onError }: { onError: (error: Error) => void }) {
   useEffect(() => { void loadSettings() }, [loadSettings])
 
   const save = async (key: string) => {
+    const entry = settings[key]
+    if (!entry || ('secret' in entry && !inputs[key])) return
     try {
       await putSettingValue(key, inputs[key] ?? '')
       await loadSettings()
@@ -431,22 +470,60 @@ function SettingsTab({ onError }: { onError: (error: Error) => void }) {
 
   return (
     <div>
-      {Object.entries(settings).map(([key, entry]) => (
-        <div className="settings-row" key={key}>
-          <label htmlFor={`setting-${key}`}>{key}</label>
-          <input
-            id={`setting-${key}`}
-            value={inputs[key] ?? String(entry.value)}
-            onChange={event => setInputs(current => ({ ...current, [key]: event.target.value }))}
-          />
-          <button onClick={() => void save(key)}>Save</button>
-          {entry.overridden && (
-            <>
-              <button onClick={() => void reset(key)}>Reset</button>
-              <span>default: {entry.default}</span>
-            </>
-          )}
-        </div>
+      {SETTINGS_GROUPS.map(group => (
+        <section className="settings-group" key={group.heading}>
+          <h2>{group.heading}</h2>
+          {group.keys.map(key => {
+            const entry = settings[key]
+            if (!entry) return null
+            const secret = 'secret' in entry
+            const value = inputs[key] ?? settingInputValue(key, entry)
+            return (
+              <div className="settings-row" key={key}>
+                <label htmlFor={`setting-${key}`}>{key}</label>
+                {secret ? (
+                  <input
+                    id={`setting-${key}`}
+                    type="password"
+                    value={value}
+                    placeholder={entry.set ? '••••• (set)' : 'not set'}
+                    onChange={event => setInputs(current => ({ ...current, [key]: event.target.value }))}
+                  />
+                ) : JSON_SETTINGS.has(key) ? (
+                  <textarea
+                    id={`setting-${key}`}
+                    value={value}
+                    onChange={event => setInputs(current => ({ ...current, [key]: event.target.value }))}
+                  />
+                ) : key === 'digestEnabled' ? (
+                  <select
+                    id={`setting-${key}`}
+                    value={value}
+                    onChange={event => setInputs(current => ({ ...current, [key]: event.target.value }))}
+                  >
+                    <option value="true">true</option>
+                    <option value="false">false</option>
+                  </select>
+                ) : (
+                  <input
+                    id={`setting-${key}`}
+                    value={value}
+                    onChange={event => setInputs(current => ({ ...current, [key]: event.target.value }))}
+                  />
+                )}
+                <button disabled={secret && !value} onClick={() => void save(key)}>Save</button>
+                {secret ? (
+                  <button onClick={() => void reset(key)}>Clear</button>
+                ) : entry.overridden && (
+                  <>
+                    <button onClick={() => void reset(key)}>Reset</button>
+                    <span>default: {String(entry.default)}</span>
+                  </>
+                )}
+              </div>
+            )
+          })}
+        </section>
       ))}
     </div>
   )

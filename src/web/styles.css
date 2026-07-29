@@ -19,6 +19,8 @@ button.small { padding: 0.15rem 0.5rem; font-size: 0.85rem; border: 1px solid #8
 button.small.active { background: #22c55e; color: white; border-color: #22c55e; }
 .settings-row { display: flex; gap: 0.75rem; align-items: center; margin-bottom: 0.6rem; }
 .settings-row label { min-width: 220px; }
+.settings-row textarea { min-width: 320px; min-height: 7rem; padding: 0.35rem; resize: vertical; }
+.settings-group { margin-bottom: 1.5rem; }
 .wizard { max-width: 560px; margin: 3rem auto; padding: 2rem; border: 1px solid #8884; border-radius: 10px; }
 .wizard h1, .wizard h2 { margin-top: 0; }
 .wizard-sub { color: #888; }
