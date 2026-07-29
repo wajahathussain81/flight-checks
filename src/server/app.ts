@@ -45,6 +45,7 @@ export function createApp(
   db: DB,
   opts: {
     startScan?: (country?: string) => void
+    onSettingsChanged?: () => void
     env?: Record<string, string | undefined>
     probe?: typeof probeKey
     mailTransport?: (smtp: SmtpConfig) => MailTransport
@@ -151,17 +152,20 @@ export function createApp(
           else putSetting(db, setting.key, String(setting.value))
         }
       })(body.settings)
+      opts.onSettingsChanged?.()
       return c.json({ ok: true })
     }
     if (!body?.key) return c.json({ error: 'key required' }, 400)
     if (body.value === null || body.value === undefined) {
       if (!(SETTING_KEYS as readonly string[]).includes(body.key)) return c.json({ error: `unknown setting: ${body.key}` }, 400)
       deleteSetting(db, body.key)
+      opts.onSettingsChanged?.()
       return c.json({ ok: true })
     }
     const err = validateSetting(body.key, String(body.value))
     if (err) return c.json({ error: err }, 400)
     putSetting(db, body.key, String(body.value))
+    opts.onSettingsChanged?.()
     return c.json({ ok: true })
   })
 
