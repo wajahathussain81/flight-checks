@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createApp } from '../../src/server/app.js'
-import { openDb, startScan, finishScan, insertSnapshots, putSetting, setDealStatus, type DB } from '../../src/core/db.js'
+import { openDb, startScan, finishScan, insertSnapshots, putSetting, getSettings, setDealStatus, type DB } from '../../src/core/db.js'
 import type { ScoredDeal } from '../../src/core/types.js'
 
 const ENV = { SEATS_AERO_KEY: 'sk1', GMAIL_USER: 'hl@gmail.com', GMAIL_APP_PASSWORD: 'gp', DIGEST_TO: 'me@example.com' }
@@ -14,8 +14,10 @@ const deal = (over: Partial<ScoredDeal> = {}): ScoredDeal => ({
 const stats = { rowsPulled: 10, finalists: 2, errors: [] }
 
 let db: DB
+let app: ReturnType<typeof createApp>
 beforeEach(() => {
   db = openDb(':memory:')
+  app = createApp(db, { env: {} })
   const s1 = startScan(db)
   insertSnapshots(db, s1, [deal({ cppConservative: 3.5 })])
   finishScan(db, s1, stats)
@@ -135,10 +137,72 @@ describe('settings API', () => {
   })
 })
 
+describe('GET /api/status', () => {
+  it('unconfigured DB → configured:false', async () => {
+    const res = await app.request('/api/status')
+    expect(await res.json()).toEqual({ configured: false, digestReady: false })
+  })
+  it('configured once key stored', async () => {
+    putSetting(db, 'seatsAeroKey', 'k')
+    const res = await app.request('/api/status')
+    expect((await res.json()).configured).toBe(true)
+  })
+})
+
+describe('secret handling', () => {
+  it('GET /api/settings never returns secret values', async () => {
+    putSetting(db, 'seatsAeroKey', 'super-secret')
+    const { settings } = await (await app.request('/api/settings')).json()
+    expect(JSON.stringify(settings)).not.toContain('super-secret')
+    expect(settings.seatsAeroKey).toEqual({ secret: true, set: true, overridden: true })
+    expect(settings['smtp.password']).toEqual({ secret: true, set: false, overridden: false })
+  })
+})
+
+describe('PUT /api/settings batch', () => {
+  it('writes all rows atomically', async () => {
+    const res = await app.request('/api/settings', { method: 'PUT', body: JSON.stringify({ settings: [
+      { key: 'seatsAeroKey', value: 'k1' }, { key: 'origin', value: 'YVR' },
+    ] }), headers: { 'Content-Type': 'application/json' } })
+    expect(res.status).toBe(200)
+    expect(getSettings(db).origin).toBe('YVR')
+  })
+  it('rejects the whole batch on one invalid entry', async () => {
+    const res = await app.request('/api/settings', { method: 'PUT', body: JSON.stringify({ settings: [
+      { key: 'origin', value: 'YVR' }, { key: 'smtp.port', value: 'nope' },
+    ] }), headers: { 'Content-Type': 'application/json' } })
+    expect(res.status).toBe(400)
+    expect((await res.json()).key).toBe('smtp.port')
+    expect(getSettings(db).origin).toBeUndefined()
+  })
+})
+
+describe('test endpoints', () => {
+  it('POST /api/test/seatsaero proxies to injected probe', async () => {
+    const appProbed = createApp(db, { probe: async () => ({ ok: true, message: 'yes' }) })
+    const res = await appProbed.request('/api/test/seatsaero', { method: 'POST', body: JSON.stringify({ key: 'k' }), headers: { 'Content-Type': 'application/json' } })
+    expect(await res.json()).toEqual({ ok: true, message: 'yes' })
+  })
+  it('POST /api/test/email sends via injected transport', async () => {
+    const sent: unknown[] = []
+    const appMail = createApp(db, { mailTransport: () => ({ sendMail: async o => { sent.push(o); return {} } }) })
+    const res = await appMail.request('/api/test/email', { method: 'POST', body: JSON.stringify({
+      smtp: { host: 'h', port: 465, user: 'u@x.c', password: 'p' }, digestTo: 't@x.c',
+    }), headers: { 'Content-Type': 'application/json' } })
+    expect((await res.json()).ok).toBe(true)
+    expect(sent).toHaveLength(1)
+  })
+})
+
+it('POST /api/scan → 409 when unconfigured', async () => {
+  const res = await app.request('/api/scan', { method: 'POST' })
+  expect(res.status).toBe(409)
+})
+
 describe('POST /api/scan', () => {
   it('triggers when idle and 409s while running', async () => {
     let calls = 0
-    const app = createApp(db, { startScan: () => { calls++ } })
+    const app = createApp(db, { startScan: () => { calls++ }, env: ENV })
     expect((await app.request('/api/scan', { method: 'POST' })).status).toBe(200)
     expect(calls).toBe(1)
     startScan(db) // unfinished recent scan
@@ -170,7 +234,7 @@ describe('scoped scans and continents', () => {
   })
   it('passes a country to startScan and rejects unknown countries', async () => {
     const calls: Array<string | undefined> = []
-    const app = createApp(db, { startScan: c => { calls.push(c) } })
+    const app = createApp(db, { startScan: c => { calls.push(c) }, env: ENV })
     expect((await app.request('/api/scan', { method: 'POST' })).status).toBe(200)
     expect((await app.request('/api/scan', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
