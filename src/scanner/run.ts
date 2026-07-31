@@ -3,12 +3,13 @@ import { configComplete, digestReady, loadConfig, type Config } from '../core/co
 import { loadEffectiveConfig } from '../core/settings.js'
 import { AIRPORT_CITY } from '../core/regions.js'
 import type { AwardRow, ScoredDeal } from '../core/types.js'
-import { scoreDeal } from '../core/valuation.js'
+import { rankingCpp, scoreDeal } from '../core/valuation.js'
+import { listWatches, matchWatch, watchState } from '../core/watches.js'
 import { dedupeCheapest, isViable, optimisticPotential } from '../core/prefilter.js'
 import { openDb, startScan, finishScan, insertSnapshots, recordAlerts, type DB } from '../core/db.js'
 import { fetchAvailability } from './seatsaero.js'
 import { estimateCashFares } from './pricing.js'
-import { selectAlerts, renderDigest, sendDigest } from './digest.js'
+import { selectAlerts, renderDigest, sendDigest, type WatchResult } from './digest.js'
 
 async function withRetry<T>(fn: () => Promise<T>, tries = 3): Promise<T> {
   let lastErr: unknown
@@ -59,18 +60,29 @@ export async function runScan(
   insertSnapshots(db, scanId, scored)
   const alerts: ScoredDeal[] = []
   if (!opts.country) {
+    const watchData = listWatches(db)
+    errors.push(...watchData.errors)
+    const today = new Date().toISOString().slice(0, 10)
+    const watchResults: WatchResult[] = watchData.watches
+      .filter(w => watchState(w, today) === 'active')
+      .map(w => ({ watch: w, deals: matchWatch(w, scored, rankingCpp) }))
+    const watchMatches = watchResults.flatMap(r => r.deals)
     alerts.push(...selectAlerts(db, scored, cfg))
-    if (alerts.length > 0 || errors.length > 0) {
+    if (alerts.length > 0 || errors.length > 0 || watchResults.length > 0) {
       if (!digestReady(cfg)) {
         console.log('[digest] skipped: email not configured or disabled')
       } else {
         const subject = alerts.length > 0
           ? `✈️ ${alerts.length} deal(s) — best ${Math.max(...alerts.map(a => a.cabin === 'economy' ? a.cppRaw : a.cppConservative)).toFixed(2)} ¢/pt`
-          : '⚠️ Flight Checks scan had errors'
+          : watchMatches.length > 0
+            ? `👀 Trip watch — best ${Math.max(...watchMatches.map(rankingCpp)).toFixed(2)} ¢/pt`
+            : errors.length > 0
+              ? '⚠️ Flight Checks scan had errors'
+              : '👀 Trip watch — no matches yet'
         if (opts.dryRun) {
           console.log(`[dry-run] would email: ${subject}`)
         } else {
-          const html = renderDigest(alerts, cfg, errors)
+          const html = renderDigest(alerts, cfg, errors, watchResults)
           try { await sendDigest(cfg, subject, html) } catch (err) { errors.push(`email: ${err}`) }
         }
       }
