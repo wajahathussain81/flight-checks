@@ -10,9 +10,9 @@ Self-hosted award-flight deal watcher. It scans seats.aero from a configurable h
 
 ## Architecture
 
-Single TypeScript ESM package (Node 22, strict mode, `NodeNext` modules). The backend runs through `tsx`; Vite builds the dashboard. Two entry points share one SQLite database: the scanner owns `scans`/`snapshots`/`alerts`, while the server owns `settings`/`deal_status`, and both read everything.
+Single TypeScript ESM package (Node 22, strict mode, `NodeNext` modules). The backend runs through `tsx`; Vite builds the dashboard. Two entry points share one SQLite database: the scanner owns `scans`/`snapshots`/`alerts`, while the server owns `settings`/`deal_status`/`watches`, and both read everything.
 
-All application configuration is available through settings, including secrets. `loadEffectiveConfig(db, env)` in `src/core/settings.ts` applies environment variables over database settings over defaults. Secret settings are write-only in API responses. Manual full and country-scoped scans are launched directly as child processes; no systemd scan service is involved. Country-scoped scans set `scans.scope` to the country and never send digests or record alerts. `/api/deals` serves the newest finished full scan or matching country scan.
+All application configuration is available through settings, including secrets. `loadEffectiveConfig(db, env)` in `src/core/settings.ts` applies environment variables over database settings over defaults. Secret settings are write-only in API responses. Manual full and country-scoped scans are launched directly as child processes; no systemd scan service is involved. Country-scoped scans set `scans.scope` to the country and never send digests or record alerts. `/api/deals` serves the newest finished full scan or matching country scan. Trip watches are server-owned rows the scanner evaluates on full scans: each active watch filters the scan's scored deals by travel window, country exclusions, continents, themes, and cabins, and its top-N appears in the digest without recording alerts.
 
 - `src/scanner/` — seats.aero pull → prefilter → static fare estimate → score → append-only snapshot → optional digest
 - `src/server/` — Hono API, static dashboard host, built-in scheduler, and child-process scan trigger

@@ -43,7 +43,7 @@ built-in scheduler (configured times)
 
 - `src/scanner/` runs the scan pipeline: API pull → prefilter → static cash-fare estimate → points scoring → snapshot → digest. Country-scoped scans can be triggered from the dashboard and never send digests.
 - `src/server/` provides the Hono API, dashboard host, built-in scheduler, and direct child-process scan trigger. `app.ts` is fully testable; `index.ts` binds the port.
-- `src/web/` is the React and Vite dashboard, with continent, country, month, and cabin filters plus per-deal history.
+- `src/web/` is the React and Vite dashboard, with continent, country, month, and cabin filters, per-deal history, and a Watches tab for trip watches (travel window + destination rules + beach/city/nature themes) that each full scan reports on in the digest.
 - `src/core/` contains configuration, valuation math, prefilter rules, airport data, and the SQLite layer. UI settings are stored in SQLite, while secrets are write-only in API responses.
 
 Snapshots are append-only, so every scan adds history without destroying previous observations.
