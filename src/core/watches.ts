@@ -1,7 +1,7 @@
 import type { DB } from './db.js'
 import type { Cabin } from './types.js'
-import { COUNTRY_CONTINENT } from './regions.js'
-import { THEMES, type Theme } from './themes.js'
+import { AIRPORT_CITY, continentOf, COUNTRY_CONTINENT } from './regions.js'
+import { AIRPORT_THEMES, THEMES, type Theme } from './themes.js'
 
 export interface WatchInput {
   name: string
@@ -114,4 +114,22 @@ export function watchState(w: Watch, today: string): WatchState {
   if (!w.enabled) return 'disabled'
   if (w.dateTo < today) return 'expired'
   return 'active'
+}
+
+export function matchWatch<T extends { route: string; date: string; cabin: string }>(
+  watch: Watch, deals: T[], rank: (d: T) => number,
+): T[] {
+  return deals
+    .filter(d => {
+      const dest = d.route.split('-')[1]
+      const country = AIRPORT_CITY[dest]?.country ?? ''
+      if (d.date < watch.dateFrom || d.date > watch.dateTo) return false
+      if (watch.excludeCountries.includes(country)) return false
+      if (watch.includeContinents.length > 0 && !watch.includeContinents.includes(continentOf(country))) return false
+      if (watch.themes.length > 0 && !watch.themes.some(t => (AIRPORT_THEMES[dest] ?? []).includes(t))) return false
+      if (watch.cabins.length > 0 && !(watch.cabins as readonly string[]).includes(d.cabin)) return false
+      return true
+    })
+    .sort((a, b) => rank(b) - rank(a))
+    .slice(0, watch.topN)
 }

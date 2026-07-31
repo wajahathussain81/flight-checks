@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { openDb, type DB } from '../../src/core/db.js'
 import {
-  createWatch, deleteWatch, getWatch, listWatches, updateWatch,
+  createWatch, deleteWatch, getWatch, listWatches, matchWatch, updateWatch,
   validateWatchInput, watchState, type WatchInput,
 } from '../../src/core/watches.js'
+import { rankingCpp } from '../../src/core/valuation.js'
+import type { ScoredDeal } from '../../src/core/types.js'
 
 const input: WatchInput = {
   name: 'Post-Ramadan international',
@@ -93,5 +95,59 @@ describe('watchState', () => {
   it('disabled wins over dates', () => {
     const watch = createWatch(db, { ...input, enabled: false })
     expect(watchState(watch, '2026-07-30')).toBe('disabled')
+  })
+})
+
+const deal = (over: Partial<ScoredDeal> = {}): ScoredDeal => ({
+  route: 'YYC-CUN', date: '2027-03-20', cabin: 'economy', program: 'aeroplan',
+  miles: 30000, taxesCad: 90, seats: 2, direct: true,
+  cashCad: 700, economyCashCad: 700, mrPoints: 30000, cppRaw: 2.03, cppConservative: 2.03,
+  ...over,
+})
+
+describe('matchWatch', () => {
+  const watch = () => createWatch(db, input) // Mar 10 – Apr 15 2027, excl USA+Canada, beach
+
+  it('includes window edges and rejects outside dates', () => {
+    const deals = [
+      deal({ date: '2027-03-10' }), deal({ date: '2027-04-15' }),
+      deal({ date: '2027-03-09' }), deal({ date: '2027-04-16' }),
+    ]
+    expect(matchWatch(watch(), deals, rankingCpp).map(d => d.date).sort())
+      .toEqual(['2027-03-10', '2027-04-15'])
+  })
+
+  it('drops excluded countries', () => {
+    const deals = [deal(), deal({ route: 'YYC-MIA' }), deal({ route: 'YYC-YYZ' })]
+    expect(matchWatch(watch(), deals, rankingCpp).map(d => d.route)).toEqual(['YYC-CUN'])
+  })
+
+  it('applies themes: beach keeps CUN, drops LHR', () => {
+    const deals = [deal(), deal({ route: 'YYC-LHR' })]
+    expect(matchWatch(watch(), deals, rankingCpp).map(d => d.route)).toEqual(['YYC-CUN'])
+  })
+
+  it('applies includeContinents when set', () => {
+    const w = createWatch(db, { ...input, themes: [], includeContinents: ['Oceania'] })
+    const deals = [deal(), deal({ route: 'YYC-NAN' })]
+    expect(matchWatch(w, deals, rankingCpp).map(d => d.route)).toEqual(['YYC-NAN'])
+  })
+
+  it('applies cabin filter when set', () => {
+    const w = createWatch(db, { ...input, cabins: ['business'] })
+    const deals = [deal(), deal({ cabin: 'business', cppConservative: 4.0 })]
+    expect(matchWatch(w, deals, rankingCpp).map(d => d.cabin)).toEqual(['business'])
+  })
+
+  it('ranks by the provided rank function and caps at topN', () => {
+    const w = createWatch(db, { ...input, topN: 2 })
+    const deals = [
+      deal({ cppRaw: 1.5, cppConservative: 1.5, miles: 40000 }),
+      deal({ route: 'YYC-MBJ', cppRaw: 3.0, cppConservative: 3.0 }),
+      deal({ route: 'YYC-PUJ', cabin: 'business', cppRaw: 9.9, cppConservative: 2.0 }),
+    ]
+    const got = matchWatch(w, deals, rankingCpp)
+    // business ranks on conservative (2.0), so MBJ economy (3.0) wins
+    expect(got.map(d => d.route)).toEqual(['YYC-MBJ', 'YYC-PUJ'])
   })
 })
