@@ -48,6 +48,19 @@ CREATE TABLE IF NOT EXISTS deal_status (
   note TEXT NOT NULL DEFAULT '',
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS watches (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  date_from TEXT NOT NULL,
+  date_to TEXT NOT NULL,
+  exclude_countries TEXT NOT NULL DEFAULT '[]',
+  include_continents TEXT NOT NULL DEFAULT '[]',
+  themes TEXT NOT NULL DEFAULT '[]',
+  cabins TEXT NOT NULL DEFAULT '[]',
+  top_n INTEGER NOT NULL DEFAULT 5,
+  created_at TEXT NOT NULL
+);
 `
 
 export function openDb(path: string): DB {
