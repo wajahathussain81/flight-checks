@@ -74,3 +74,20 @@ export const triggerScan = async (country?: string): Promise<void> => {
   })
   if (!res.ok) throw new Error((await res.json() as { error: string }).error)
 }
+
+export interface WatchRow {
+  id: number; name: string; enabled: boolean; dateFrom: string; dateTo: string
+  excludeCountries: string[]; includeContinents: string[]; themes: string[]; cabins: string[]
+  topN: number; createdAt: string; state: 'active' | 'expired' | 'disabled'
+}
+export interface WatchInput {
+  name: string; enabled: boolean; dateFrom: string; dateTo: string
+  excludeCountries: string[]; includeContinents: string[]; themes: string[]; cabins: string[]
+  topN: number
+}
+export const fetchWatches = () => get<{ watches: WatchRow[] }>('/api/watches').then(r => r.watches)
+export const fetchWatchDeals = (id: number) =>
+  get<{ deals: DealRow[] }>(`/api/watches/${id}/deals`).then(r => r.deals)
+export const createWatchApi = (w: WatchInput) => send('/api/watches', 'POST', w)
+export const updateWatchApi = (id: number, w: WatchInput) => send(`/api/watches/${id}`, 'PUT', w)
+export const deleteWatchApi = (id: number) => send(`/api/watches/${id}`, 'DELETE', {})

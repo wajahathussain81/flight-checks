@@ -12,6 +12,13 @@ const deal = (over: Partial<ScoredDeal> = {}): ScoredDeal => ({
   ...over,
 })
 const stats = { rowsPulled: 10, finalists: 2, errors: [] }
+const watchInput = {
+  name: 'Post-Ramadan international',
+  dateFrom: '2026-05-01', dateTo: '2026-09-30',
+  excludeCountries: ['USA', 'Canada'], themes: ['city'],
+}
+const post = (path: string, body: unknown, method = 'POST') =>
+  createApp(db).request(path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
 
 let db: DB
 let app: ReturnType<typeof createApp>
@@ -245,5 +252,50 @@ describe('scoped scans and continents', () => {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ country: 'Atlantis' }),
     })).status).toBe(400)
+  })
+})
+
+describe('/api/watches', () => {
+  it('creates, lists with state, updates, and deletes', async () => {
+    const created = await post('/api/watches', watchInput)
+    expect(created.status).toBe(201)
+    const { watch } = await created.json()
+    expect(['active', 'expired']).toContain(watch.state) // real clock; window spans mid-2026
+
+    const list = await createApp(db).request('/api/watches')
+    const { watches } = await list.json()
+    expect(watches).toHaveLength(1)
+
+    const updated = await post(`/api/watches/${watch.id}`, { ...watchInput, name: 'Renamed' }, 'PUT')
+    expect(((await updated.json()) as { watch: { name: string } }).watch.name).toBe('Renamed')
+
+    const gone = await createApp(db).request(`/api/watches/${watch.id}`, { method: 'DELETE' })
+    expect(gone.status).toBe(200)
+    expect((await (await createApp(db).request('/api/watches')).json()).watches).toHaveLength(0)
+  })
+
+  it('validates input', async () => {
+    expect((await post('/api/watches', { ...watchInput, excludeCountries: ['Narnia'] })).status).toBe(400)
+    expect((await post('/api/watches', { ...watchInput, name: '' })).status).toBe(400)
+  })
+
+  it('404s on unknown ids', async () => {
+    expect((await post('/api/watches/999', watchInput, 'PUT')).status).toBe(404)
+    expect((await createApp(db).request('/api/watches/999', { method: 'DELETE' })).status).toBe(404)
+    expect((await createApp(db).request('/api/watches/999/deals')).status).toBe(404)
+  })
+
+  it('returns matching deals from the newest full scan', async () => {
+    const s3 = startScan(db)
+    insertSnapshots(db, s3, [
+      deal({ route: 'YYC-CUN', date: '2026-06-01', cabin: 'economy', cppRaw: 2.0, cppConservative: 2.0 }),
+      deal({ route: 'YYC-LHR', date: '2026-06-01' }),
+      deal({ route: 'YYC-MIA', date: '2026-06-01' }),
+    ])
+    finishScan(db, s3, stats)
+    const { watch } = await (await post('/api/watches', { ...watchInput, themes: ['beach'] })).json()
+    const res = await createApp(db).request(`/api/watches/${watch.id}/deals`)
+    const { deals } = await res.json()
+    expect(deals.map((d: { route: string }) => d.route)).toEqual(['YYC-CUN'])
   })
 })

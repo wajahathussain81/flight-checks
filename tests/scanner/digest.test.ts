@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { selectAlerts, renderDigest, sendDigest } from '../../src/scanner/digest.js'
+import { selectAlerts, renderDigest, sendDigest, type WatchResult } from '../../src/scanner/digest.js'
 import { openDb, recordAlerts, setDealStatus, type DB } from '../../src/core/db.js'
 import { loadConfig } from '../../src/core/config.js'
 import type { ScoredDeal } from '../../src/core/types.js'
+import { createWatch } from '../../src/core/watches.js'
 
 const cfg = loadConfig({
   SEATS_AERO_KEY: 'sk1',
@@ -98,5 +99,31 @@ describe('sendDigest', () => {
   it('propagates transport failures', async () => {
     const sendMail = vi.fn().mockRejectedValue(new Error('535 auth failed'))
     await expect(sendDigest(cfg, 's', '<p></p>', { sendMail })).rejects.toThrow('535')
+  })
+})
+
+describe('renderDigest watch sections', () => {
+  const makeWatch = () => createWatch(db, {
+    name: 'Post-Ramadan international',
+    dateFrom: '2027-03-10', dateTo: '2027-04-15',
+    excludeCountries: ['USA', 'Canada'], themes: ['beach'],
+  })
+
+  it('renders a section per watch with matching deals', () => {
+    const match = deal({ route: 'YYC-CUN', date: '2027-03-20' })
+    const watchResults: WatchResult[] = [{ watch: makeWatch(), deals: [match] }]
+    const html = renderDigest([], cfg, [], watchResults)
+    expect(html).toContain('Post-Ramadan international')
+    expect(html).toContain('2027-03-10')
+    expect(html).toContain('YYC-CUN')
+  })
+
+  it('renders a no-matches line for an empty watch', () => {
+    const html = renderDigest([], cfg, [], [{ watch: makeWatch(), deals: [] }])
+    expect(html).toContain('No deals in your window yet')
+  })
+
+  it('renders no watch block when there are no watches', () => {
+    expect(renderDigest([deal()], cfg)).not.toContain('👀')
   })
 })

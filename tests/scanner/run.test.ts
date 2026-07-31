@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { rmSync } from 'node:fs'
 import { runScan } from '../../src/scanner/run.js'
 import { openDb, putSetting } from '../../src/core/db.js'
+import { createWatch } from '../../src/core/watches.js'
 
 const env = {
   SEATS_AERO_KEY: 'sk1',
@@ -70,6 +71,38 @@ describe('runScan --dry-run', () => {
       expect(log).toHaveBeenCalledWith('[digest] skipped: email not configured or disabled')
       const db = openDb(dbPath)
       expect((db.prepare('SELECT COUNT(*) AS n FROM alerts').get() as { n: number }).n).toBe(r.alerts)
+    } finally {
+      log.mockRestore()
+    }
+  })
+
+  it('evaluates watches on full scans without recording watch alerts', async () => {
+    const dbPath = `${process.env.TMPDIR ?? '/tmp'}/flight-checks-watch-${process.pid}.db`
+    rmSync(dbPath, { force: true })
+    const setup = openDb(dbPath)
+    createWatch(setup, { name: 'UK spring', dateFrom: '2026-05-01', dateTo: '2026-09-30' })
+    setup.close()
+    const result = await runScan({ dryRun: true, env: { ...env, DB_PATH: dbPath } })
+    expect(result.snapshots).toBe(3)
+    const db = openDb(dbPath)
+    // watch matches never land in the alerts table — only threshold alerts do
+    expect((db.prepare('SELECT COUNT(*) AS n FROM alerts').get() as { n: number }).n).toBe(result.alerts)
+  })
+
+  it('sends the digest for an active watch even when nothing else alerts', async () => {
+    const dbPath = `${process.env.TMPDIR ?? '/tmp'}/flight-checks-watch-only-${process.pid}.db`
+    rmSync(dbPath, { force: true })
+    const setup = openDb(dbPath)
+    createWatch(setup, { name: 'Quiet window', dateFrom: '2030-01-01', dateTo: '2030-02-01' })
+    // thresholds nobody clears -> no finalists, no alerts, watch has no matches
+    putSetting(setup, 'thresholds.economy', '99')
+    putSetting(setup, 'thresholds.premiumConservative', '99')
+    setup.close()
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      const result = await runScan({ dryRun: true, env: { ...env, DB_PATH: dbPath } })
+      expect(result.alerts).toBe(0)
+      expect(log).toHaveBeenCalledWith('[dry-run] would email: 👀 Trip watch — no matches yet')
     } finally {
       log.mockRestore()
     }
