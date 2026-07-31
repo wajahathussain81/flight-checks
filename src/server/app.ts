@@ -3,6 +3,10 @@ import { getSettings, getDealStatuses, setDealStatus, putSetting, deleteSetting,
 import { SETTING_KEYS, SECRET_KEYS, validateSetting, loadEffectiveConfig, type SettingKey } from '../core/settings.js'
 import { defaultConfig, configComplete, digestReady, type Config, type SmtpConfig } from '../core/config.js'
 import { AIRPORT_CITY, airportLabel, COUNTRY_CONTINENT, continentOf } from '../core/regions.js'
+import {
+  createWatch, deleteWatch, getWatch, listWatches, matchWatch, updateWatch,
+  validateWatchInput, watchState, type WatchInput,
+} from '../core/watches.js'
 import { probeKey } from '../scanner/seatsaero.js'
 import type { MailTransport } from '../scanner/digest.js'
 import nodemailer from 'nodemailer'
@@ -15,6 +19,7 @@ interface SnapshotRow {
 
 const rankOf = (d: SnapshotRow): number => (d.cabin === 'economy' ? d.cpp_raw : d.cpp_conservative)
 const destOf = (route: string): string => route.split('-')[1]
+const todayIso = (): string => new Date().toISOString().slice(0, 10)
 
 const valueOf = (cfg: Config, key: SettingKey): number | string | boolean => {
   switch (key) {
@@ -117,6 +122,48 @@ export function createApp(
       return { alertKey: key, note: v.note, current: (stmt.get(route, date, cabin, program) as SnapshotRow | undefined) ?? null }
     })
     return c.json({ deals })
+  })
+
+  app.get('/api/watches', c => {
+    const { watches } = listWatches(db)
+    return c.json({ watches: watches.map(w => ({ ...w, state: watchState(w, todayIso()) })) })
+  })
+
+  app.post('/api/watches', async c => {
+    const body = await c.req.json().catch(() => null)
+    const err = validateWatchInput(body)
+    if (err) return c.json({ error: err }, 400)
+    const watch = createWatch(db, body as WatchInput)
+    return c.json({ watch: { ...watch, state: watchState(watch, todayIso()) } }, 201)
+  })
+
+  app.put('/api/watches/:id', async c => {
+    const body = await c.req.json().catch(() => null)
+    const err = validateWatchInput(body)
+    if (err) return c.json({ error: err }, 400)
+    const watch = updateWatch(db, Number(c.req.param('id')), body as WatchInput)
+    if (!watch) return c.json({ error: 'watch not found' }, 404)
+    return c.json({ watch: { ...watch, state: watchState(watch, todayIso()) } })
+  })
+
+  app.delete('/api/watches/:id', c => {
+    if (!deleteWatch(db, Number(c.req.param('id')))) return c.json({ error: 'watch not found' }, 404)
+    return c.json({ ok: true })
+  })
+
+  app.get('/api/watches/:id/deals', c => {
+    const watch = getWatch(db, Number(c.req.param('id')))
+    if (!watch) return c.json({ error: 'watch not found' }, 404)
+    const latest = db.prepare(
+      "SELECT id FROM scans WHERE finished_at IS NOT NULL AND scope = 'full' ORDER BY id DESC LIMIT 1",
+    ).get() as { id: number } | undefined
+    const rows = latest
+      ? db.prepare('SELECT * FROM snapshots WHERE scan_id = ?').all(latest.id) as SnapshotRow[]
+      : []
+    return c.json({
+      watch: { ...watch, state: watchState(watch, todayIso()) },
+      deals: matchWatch(watch, rows, rankOf),
+    })
   })
 
   app.get('/api/settings', c => {
