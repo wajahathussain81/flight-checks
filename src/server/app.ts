@@ -2,7 +2,9 @@ import { Hono } from 'hono'
 import { getSettings, getDealStatuses, setDealStatus, putSetting, deleteSetting, alertKey, type DB } from '../core/db.js'
 import { SETTING_KEYS, SECRET_KEYS, validateSetting, loadEffectiveConfig, type SettingKey } from '../core/settings.js'
 import { defaultConfig, configComplete, digestReady, type Config, type SmtpConfig } from '../core/config.js'
-import { AIRPORT_CITY, airportLabel, COUNTRY_CONTINENT, continentOf } from '../core/regions.js'
+import {
+  AIRPORT_CITY, airportLabel, continentOf, continentOfAirport, COUNTRY_CONTINENT, countryOf,
+} from '../core/regions.js'
 import {
   createWatch, deleteWatch, getWatch, listWatches, matchWatch, updateWatch,
   validateWatchInput, watchState, type WatchInput,
@@ -75,8 +77,8 @@ export function createApp(
     if (q.cabin) rows = rows.filter(d => d.cabin === q.cabin)
     if (q.month) rows = rows.filter(d => d.date.startsWith(q.month))
     if (q.minCpp) rows = rows.filter(d => rankOf(d) >= Number(q.minCpp))
-    if (q.country) rows = rows.filter(d => AIRPORT_CITY[destOf(d.route)]?.country === q.country)
-    if (q.continent) rows = rows.filter(d => continentOf(AIRPORT_CITY[destOf(d.route)]?.country ?? '') === q.continent)
+    if (q.country) rows = rows.filter(d => countryOf(destOf(d.route)) === q.country)
+    if (q.continent) rows = rows.filter(d => continentOfAirport(destOf(d.route)) === q.continent)
     if (q.q) {
       const needle = q.q.toLowerCase()
       rows = rows.filter(d => d.route.toLowerCase().includes(needle) || airportLabel(destOf(d.route)).toLowerCase().includes(needle))
@@ -94,7 +96,12 @@ export function createApp(
   })
 
   app.get('/api/meta', c => {
-    const countries = [...new Set(Object.values(AIRPORT_CITY).map(i => i.country))].sort()
+    // Countries you can actually filter to: everything seen in scanned data, unioned
+    // with the curated list so the dropdown is populated before the first scan.
+    const seen = db.prepare('SELECT DISTINCT route FROM snapshots').all() as Array<{ route: string }>
+    const seenCountries = seen.map(r => countryOf(destOf(r.route))).filter(Boolean)
+    const curated = Object.values(AIRPORT_CITY).map(i => i.country)
+    const countries = [...new Set([...curated, ...seenCountries])].sort()
     const continents = [...new Set(countries.map(continentOf))].sort()
     const countryContinents = Object.fromEntries(countries.map(cn => [cn, continentOf(cn)]))
     return c.json({ countries, continents, countryContinents, pointsBalance: loadEffectiveConfig(db, env).pointsBalance })

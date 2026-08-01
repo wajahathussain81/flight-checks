@@ -1,13 +1,13 @@
 import { readFileSync } from 'node:fs'
 import { configComplete, digestReady, loadConfig, type Config } from '../core/config.js'
 import { loadEffectiveConfig } from '../core/settings.js'
-import { AIRPORT_CITY } from '../core/regions.js'
+import { countryOf } from '../core/regions.js'
 import type { AwardRow, ScoredDeal } from '../core/types.js'
 import { rankingCpp, scoreDeal } from '../core/valuation.js'
 import { listWatches, matchWatch, watchState } from '../core/watches.js'
 import { dedupeCheapest, isViable, optimisticPotential } from '../core/prefilter.js'
 import { openDb, startScan, finishScan, insertSnapshots, recordAlerts, type DB } from '../core/db.js'
-import { fetchAvailability } from './seatsaero.js'
+import { fetchAvailability, fetchBulkAvailability } from './seatsaero.js'
 import { estimateCashFares } from './pricing.js'
 import { selectAlerts, renderDigest, sendDigest, type WatchResult } from './digest.js'
 
@@ -35,16 +35,27 @@ export async function runScan(
   const errors: string[] = []
 
   let rows: AwardRow[] = []
+  let truncated: string[] = []
   try {
-    rows = opts.dryRun
-      ? (JSON.parse(readFileSync('tests/fixtures/awards.json', 'utf8')) as AwardRow[])
-      : await withRetry(() => fetchAvailability(cfg, fetch, opts.country))
+    if (opts.dryRun) {
+      rows = JSON.parse(readFileSync('tests/fixtures/awards.json', 'utf8')) as AwardRow[]
+    } else if (opts.country) {
+      rows = await withRetry(() => fetchAvailability(cfg, fetch, opts.country))
+    } else {
+      const bulk = await withRetry(() => fetchBulkAvailability(cfg))
+      rows = bulk.rows
+      truncated = bulk.truncated
+    }
   } catch (err) {
     errors.push(`seats.aero: ${err}`)
   }
 
+  if (truncated.length > 0) {
+    console.warn(`page cap reached; results truncated for: ${truncated.join(', ')}`)
+  }
+
   if (opts.country) {
-    rows = rows.filter(r => AIRPORT_CITY[r.route.split('-')[1]]?.country === opts.country)
+    rows = rows.filter(r => countryOf(r.route.split('-')[1]) === opts.country)
   }
 
   const deduped = dedupeCheapest(rows)
@@ -52,9 +63,11 @@ export async function runScan(
     .filter(r => r.program in cfg.ratios && isViable(r, cfg.ratios[r.program], cfg.thresholds))
     .sort((a, b) => optimisticPotential(b, cfg.ratios[b.program]) - optimisticPotential(a, cfg.ratios[a.program]))
 
+  const penalty = new Map(cfg.origins.map(o => [o.code, o.positioningCad]))
   const scored: ScoredDeal[] = finalists.map(row => {
     const est = estimateCashFares(row.route, row.cabin)
-    return scoreDeal(row, est.cashCad, est.economyCashCad, cfg.ratios[row.program])
+    return scoreDeal(row, est.cashCad, est.economyCashCad, cfg.ratios[row.program],
+      penalty.get(row.route.split('-')[0]) ?? 0)
   })
 
   insertSnapshots(db, scanId, scored)
@@ -90,6 +103,6 @@ export async function runScan(
     }
   }
 
-  finishScan(db, scanId, { rowsPulled: rows.length, finalists: finalists.length, errors })
+  finishScan(db, scanId, { rowsPulled: rows.length, finalists: finalists.length, errors, truncated })
   return { scanId, snapshots: scored.length, alerts: alerts.length, errors }
 }

@@ -1,0 +1,23 @@
+{
+  "data": [
+    {
+      "Route": { "Source": "aeroplan", "OriginAirport": "YYC", "DestinationAirport": "CUN" },
+      "Date": "2027-04-03",
+      "JAvailable": true, "JMileageCost": "34300", "JTotalTaxes": 16792, "JRemainingSeats": 9, "JDirect": true,
+      "TaxesCurrency": "CAD"
+    },
+    {
+      "Route": { "Source": "aeroplan", "OriginAirport": "LAX", "DestinationAirport": "DPS" },
+      "Date": "2027-04-05",
+      "JAvailable": true, "JMileageCost": "60000", "JTotalTaxes": 9800, "JRemainingSeats": 2, "JDirect": false,
+      "TaxesCurrency": "CAD"
+    },
+    {
+      "Route": { "Source": "aeroplan", "OriginAirport": "JFK", "DestinationAirport": "LHR" },
+      "Date": "2027-04-06",
+      "JAvailable": true, "JMileageCost": "50000", "JTotalTaxes": 20000, "JRemainingSeats": 4, "JDirect": true,
+      "TaxesCurrency": "CAD"
+    }
+  ],
+  "hasMore": false
+}

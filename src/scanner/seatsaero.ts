@@ -1,6 +1,7 @@
 import type { Config } from '../core/config.js'
 import type { AwardRow, Cabin } from '../core/types.js'
 import { regionOf, TAX_ESTIMATE_CAD, AIRPORT_REGION, countryOf } from '../core/regions.js'
+import { airportInfo } from '../core/airports.js'
 
 const BASE = 'https://seats.aero/partnerapi'
 const isoDay = (d: Date): string => d.toISOString().slice(0, 10)
@@ -74,6 +75,49 @@ export async function fetchAvailability(cfg: Config, fetchFn: typeof fetch = fet
     skip += take
   }
   return rows
+}
+
+export async function fetchBulkAvailability(
+  cfg: Config,
+  fetchFn: typeof fetch = fetch,
+): Promise<{ rows: AwardRow[]; truncated: string[] }> {
+  const originCodes = new Set(cfg.origins.map(o => o.code))
+  const regions = [...new Set(
+    cfg.origins.map(o => airportInfo(o.code)?.continent).filter((c): c is string => Boolean(c)),
+  )]
+  const rows: AwardRow[] = []
+  const truncated: string[] = []
+  const take = 500
+
+  for (const program of Object.keys(cfg.ratios)) {
+    let hitCap = false
+    for (const region of regions) {
+      let skip = 0
+      for (let page = 0; page < cfg.maxPagesPerProgram; page++) {
+        const url = new URL(`${BASE}/availability`)
+        url.searchParams.set('source', program)
+        url.searchParams.set('origin_region', region)
+        url.searchParams.set('take', String(take))
+        url.searchParams.set('skip', String(skip))
+        let json: { hasMore?: boolean }
+        try {
+          const res = await fetchFn(url.toString(), {
+            headers: { 'Partner-Authorization': cfg.seatsAeroKey, Accept: 'application/json' },
+          })
+          if (!res.ok) throw new Error(`seats.aero ${res.status}`)
+          json = await res.json()
+        } catch {
+          break // skip this program/region; one bad response must not fail the scan
+        }
+        rows.push(...parseCachedSearch(json, cfg).filter(r => originCodes.has(r.route.split('-')[0])))
+        if (!json.hasMore) break
+        skip += take
+        if (page === cfg.maxPagesPerProgram - 1) hitCap = true
+      }
+    }
+    if (hitCap) truncated.push(program)
+  }
+  return { rows, truncated }
 }
 
 export async function probeKey(key: string, fetchFn: typeof fetch = fetch): Promise<{ ok: boolean; message: string }> {

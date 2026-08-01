@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS scans (
   finalists INTEGER NOT NULL DEFAULT 0,
   errors TEXT NOT NULL DEFAULT '',
   scope TEXT NOT NULL DEFAULT 'full'
+  ,truncated TEXT NOT NULL DEFAULT '[]'
 );
 CREATE TABLE IF NOT EXISTS snapshots (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -78,6 +79,9 @@ export function openDb(path: string): DB {
   if (!snapCols.some(c => c.name === 'origin')) {
     db.exec("ALTER TABLE snapshots ADD COLUMN origin TEXT NOT NULL DEFAULT 'YYC'")
   }
+  if (!scanCols.some(c => c.name === 'truncated')) {
+    db.exec("ALTER TABLE scans ADD COLUMN truncated TEXT NOT NULL DEFAULT '[]'")
+  }
   return db
 }
 
@@ -88,10 +92,11 @@ export function startScan(db: DB, scope = 'full'): number {
 
 export function finishScan(
   db: DB, scanId: number,
-  stats: { rowsPulled: number; finalists: number; errors: string[] },
+  stats: { rowsPulled: number; finalists: number; errors: string[]; truncated?: string[] },
 ): void {
-  db.prepare('UPDATE scans SET finished_at = ?, rows_pulled = ?, finalists = ?, errors = ? WHERE id = ?')
-    .run(new Date().toISOString(), stats.rowsPulled, stats.finalists, stats.errors.join('\n'), scanId)
+  db.prepare('UPDATE scans SET finished_at = ?, rows_pulled = ?, finalists = ?, errors = ?, truncated = ? WHERE id = ?')
+    .run(new Date().toISOString(), stats.rowsPulled, stats.finalists, stats.errors.join('\n'),
+         JSON.stringify(stats.truncated ?? []), scanId)
 }
 
 export function insertSnapshots(db: DB, scanId: number, deals: ScoredDeal[]): void {
