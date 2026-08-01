@@ -34,17 +34,20 @@ export function scoreDeal(
   cashCad: number,
   economyCashCad: number | null,
   ratio: number,
+  positioningCad = 0,
 ): ScoredDeal {
   const mrPoints = mrPointsNeeded(row.miles, ratio)
-  const conservativeCashCad = conservativeCash(cashCad, economyCashCad, row.cabin)
+  const netCash = Math.max(0, cashCad - positioningCad)
+  const netEconomy = economyCashCad === null ? null : Math.max(0, economyCashCad - positioningCad)
+  const conservativeCashCad = conservativeCash(netCash, netEconomy, row.cabin)
   const roundToTwoDecimals = (value: number): number => Math.round(value * 100) / 100
 
   return {
     ...row,
-    cashCad,
-    economyCashCad,
+    cashCad: netCash,
+    economyCashCad: netEconomy,
     mrPoints,
-    cppRaw: roundToTwoDecimals(cpp(cashCad, row.taxesCad, mrPoints)),
+    cppRaw: roundToTwoDecimals(cpp(netCash, row.taxesCad, mrPoints)),
     cppConservative: roundToTwoDecimals(cpp(conservativeCashCad, row.taxesCad, mrPoints)),
   }
 }

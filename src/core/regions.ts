@@ -1,4 +1,6 @@
 import type { Cabin } from './types.js'
+import { airportInfo } from './airports.js'
+import { countryName } from './countries.js'
 
 export const AIRPORT_REGION: Record<string, string> = {
   // North America
@@ -108,6 +110,15 @@ export const COUNTRY_CONTINENT: Record<string, string> = {
 
 export function continentOf(country: string): string {
   return COUNTRY_CONTINENT[country] ?? 'Other'
+}
+
+export function countryOf(code: string): string {
+  const info = airportInfo(code)
+  return info ? countryName(info.country) : (AIRPORT_CITY[code]?.country ?? '')
+}
+
+export function continentOfAirport(code: string): string {
+  return airportInfo(code)?.continent ?? continentOf(countryOf(code))
 }
 
 // "Best plausible" cash fares from YYC, used only to discard hopeless rows cheaply.

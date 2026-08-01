@@ -1,6 +1,6 @@
 import type { DB } from './db.js'
 import type { Cabin } from './types.js'
-import { AIRPORT_CITY, continentOf, COUNTRY_CONTINENT } from './regions.js'
+import { continentOfAirport, countryOf, COUNTRY_CONTINENT } from './regions.js'
 import { AIRPORT_THEMES, THEMES, type Theme } from './themes.js'
 
 export interface WatchInput {
@@ -122,10 +122,10 @@ export function matchWatch<T extends { route: string; date: string; cabin: strin
   return deals
     .filter(d => {
       const dest = d.route.split('-')[1]
-      const country = AIRPORT_CITY[dest]?.country ?? ''
+      const country = countryOf(dest)
       if (d.date < watch.dateFrom || d.date > watch.dateTo) return false
       if (watch.excludeCountries.includes(country)) return false
-      if (watch.includeContinents.length > 0 && !watch.includeContinents.includes(continentOf(country))) return false
+      if (watch.includeContinents.length > 0 && !watch.includeContinents.includes(continentOfAirport(dest))) return false
       if (watch.themes.length > 0 && !watch.themes.some(t => (AIRPORT_THEMES[dest] ?? []).includes(t))) return false
       if (watch.cabins.length > 0 && !(watch.cabins as readonly string[]).includes(d.cabin)) return false
       return true

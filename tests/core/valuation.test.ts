@@ -37,6 +37,27 @@ describe('scoreDeal', () => {
   })
 })
 
+describe('scoreDeal positioning penalty', () => {
+  const positioningRow = row({
+    route: 'LAX-DPS', date: '2027-04-01', miles: 60_000, taxesCad: 100, direct: false,
+  })
+
+  it('subtracts positioning cost from the cash value', () => {
+    const without = scoreDeal(positioningRow, 3000, 1000, 1, 0)
+    const with280 = scoreDeal(positioningRow, 3000, 1000, 1, 280)
+    expect(with280.cppConservative).toBeLessThan(without.cppConservative)
+  })
+
+  it('defaults to no penalty when omitted', () => {
+    expect(scoreDeal(positioningRow, 3000, 1000, 1).cppRaw)
+      .toBe(scoreDeal(positioningRow, 3000, 1000, 1, 0).cppRaw)
+  })
+
+  it('scores zero when positioning exceeds the deal value', () => {
+    expect(scoreDeal(positioningRow, 3000, 1000, 1, 99_000).cppRaw).toBe(0)
+  })
+})
+
 describe('rankingCpp', () => {
   it('uses raw for economy, conservative for premium', () => {
     const e = scoreDeal(row({ cabin: 'economy', miles: 25000 }), 600, 600, 1)

@@ -1,6 +1,6 @@
 import type { Config } from '../core/config.js'
 import type { AwardRow, Cabin } from '../core/types.js'
-import { regionOf, TAX_ESTIMATE_CAD, AIRPORT_REGION, AIRPORT_CITY } from '../core/regions.js'
+import { regionOf, TAX_ESTIMATE_CAD, AIRPORT_REGION, countryOf } from '../core/regions.js'
 
 const BASE = 'https://seats.aero/partnerapi'
 const isoDay = (d: Date): string => d.toISOString().slice(0, 10)
@@ -49,8 +49,8 @@ export async function fetchAvailability(cfg: Config, fetchFn: typeof fetch = fet
   // Cached search returns nothing without explicit destinations.
   // Skip the origin and destinations in excluded countries.
   const destinations = Object.keys(AIRPORT_REGION)
-    .filter(a => a !== cfg.origin && !cfg.excludedCountries.includes(AIRPORT_CITY[a]?.country ?? ''))
-    .filter(a => !country || AIRPORT_CITY[a]?.country === country)
+    .filter(a => a !== cfg.origin && !cfg.excludedCountries.includes(countryOf(a)))
+    .filter(a => !country || countryOf(a) === country)
     .join(',')
   const take = 1000
   const maxPages = 100 // runaway guard: ~12 pages observed live with the sources filter
