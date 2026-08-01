@@ -1,6 +1,7 @@
 import type { AwardRow } from './types.js'
 import { cpp, mrPointsNeeded, conservativeCash } from './valuation.js'
-import { OPTIMISTIC_CASH_CAD, regionOf } from './regions.js'
+import { distanceKm } from './airports.js'
+import { optimisticCashCad } from './fares.js'
 
 export function dedupeCheapest(rows: AwardRow[]): AwardRow[] {
   const best = new Map<string, AwardRow>()
@@ -13,9 +14,14 @@ export function dedupeCheapest(rows: AwardRow[]): AwardRow[] {
 }
 
 export function optimisticPotential(row: AwardRow, ratio: number): number {
-  const dest = row.route.split('-')[1]
-  const fares = OPTIMISTIC_CASH_CAD[regionOf(dest)]
-  const optimistic = conservativeCash(fares[row.cabin], fares.economy, row.cabin)
+  const [origin, dest] = row.route.split('-')
+  const km = distanceKm(origin, dest)
+  if (km === undefined) return 0
+  const optimistic = conservativeCash(
+    optimisticCashCad(km, row.cabin),
+    optimisticCashCad(km, 'economy'),
+    row.cabin,
+  )
   return cpp(optimistic, row.taxesCad, mrPointsNeeded(row.miles, ratio))
 }
 
