@@ -64,6 +64,13 @@ CREATE TABLE IF NOT EXISTS watches (
   top_n INTEGER NOT NULL DEFAULT 5,
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS route_coverage (
+  source TEXT NOT NULL,
+  origin TEXT NOT NULL,
+  destination TEXT NOT NULL,
+  last_seen TEXT NOT NULL,
+  PRIMARY KEY (source, origin, destination)
+);
 `
 
 export function openDb(path: string): DB {

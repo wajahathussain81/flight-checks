@@ -120,6 +120,19 @@ export async function fetchBulkAvailability(
   return { rows, truncated }
 }
 
+export async function fetchRoutes(
+  cfg: Config, source: string, fetchFn: typeof fetch = fetch,
+): Promise<Array<{ origin: string; destination: string }>> {
+  const url = new URL(`${BASE}/routes`)
+  url.searchParams.set('source', source)
+  const res = await fetchFn(url.toString(), {
+    headers: { 'Partner-Authorization': cfg.seatsAeroKey, Accept: 'application/json' },
+  })
+  if (!res.ok) throw new Error(`seats.aero ${res.status}`)
+  const json = await res.json() as { data?: Array<{ OriginAirport: string; DestinationAirport: string }> }
+  return (json.data ?? []).map(r => ({ origin: r.OriginAirport, destination: r.DestinationAirport }))
+}
+
 export async function probeKey(key: string, fetchFn: typeof fetch = fetch): Promise<{ ok: boolean; message: string }> {
   const url = new URL(`${BASE}/search`)
   url.searchParams.set('origin_airport', 'YYZ')

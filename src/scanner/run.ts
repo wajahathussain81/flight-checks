@@ -7,7 +7,8 @@ import { rankingCpp, scoreDeal } from '../core/valuation.js'
 import { listWatches, matchWatch, watchState } from '../core/watches.js'
 import { dedupeCheapest, isViable, optimisticPotential } from '../core/prefilter.js'
 import { openDb, startScan, finishScan, insertSnapshots, recordAlerts, type DB } from '../core/db.js'
-import { fetchAvailability, fetchBulkAvailability } from './seatsaero.js'
+import { recordCoverage } from '../core/coverage.js'
+import { fetchAvailability, fetchBulkAvailability, fetchRoutes } from './seatsaero.js'
 import { estimateCashFares } from './pricing.js'
 import { selectAlerts, renderDigest, sendDigest, type WatchResult } from './digest.js'
 
@@ -52,6 +53,20 @@ export async function runScan(
 
   if (truncated.length > 0) {
     console.warn(`page cap reached; results truncated for: ${truncated.join(', ')}`)
+  }
+
+  if (!opts.dryRun && !opts.country) {
+    const newest = db.prepare('SELECT MAX(last_seen) AS t FROM route_coverage').get() as { t: string | null }
+    const weekOld = !newest.t || Date.now() - Date.parse(newest.t) > 7 * 86_400_000
+    if (weekOld) {
+      for (const source of Object.keys(cfg.ratios)) {
+        try {
+          recordCoverage(db, source, await fetchRoutes(cfg, source))
+        } catch (err) {
+          console.warn(`route coverage refresh failed for ${source}: ${err}`)
+        }
+      }
+    }
   }
 
   if (opts.country) {
