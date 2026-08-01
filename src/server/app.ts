@@ -9,9 +9,12 @@ import {
   createWatch, deleteWatch, getWatch, listWatches, matchWatch, updateWatch,
   validateWatchInput, watchState, type WatchInput,
 } from '../core/watches.js'
-import { probeKey } from '../scanner/seatsaero.js'
+import { probeKey, fetchSearch } from '../scanner/seatsaero.js'
 import type { MailTransport } from '../scanner/digest.js'
 import nodemailer from 'nodemailer'
+import { estimateCashFares } from '../scanner/pricing.js'
+import { scoreDeal, rankingCpp } from '../core/valuation.js'
+import { explainEmpty } from '../core/coverage.js'
 
 interface SnapshotRow {
   id: number; scan_id: number; route: string; date: string; cabin: string; program: string
@@ -275,6 +278,37 @@ export function createApp(
              cash_cad, miles
       FROM snapshots WHERE route = ? AND cabin = ? ORDER BY id ASC`).all(route, cabin)
     return c.json({ points })
+  })
+
+  app.post('/api/search', async c => {
+    const body = await c.req.json().catch(() => null) as {
+      origin?: string; destination?: string; dateFrom?: string; dateTo?: string; cabins?: string[]
+    } | null
+    if (!body?.origin || !body.destination || !body.dateFrom || !body.dateTo) {
+      return c.json({ error: 'origin, destination, dateFrom and dateTo are required' }, 400)
+    }
+
+    const cfg = loadEffectiveConfig(db, env)
+    let rows
+    try {
+      rows = await fetchSearch(cfg, body.origin, body.destination, body.dateFrom, body.dateTo)
+    } catch (err) {
+      return c.json({ error: `seats.aero request failed: ${err}` }, 502)
+    }
+
+    const positioningCad = cfg.origins.find(o => o.code === body.origin)?.positioningCad ?? 0
+    const deals = rows
+      .filter(r => !body.cabins?.length || body.cabins.includes(r.cabin))
+      .map(r => {
+        const fares = estimateCashFares(r.route, r.cabin)
+        return scoreDeal(r, fares.cashCad, fares.economyCashCad, cfg.ratios[r.program] ?? 1, positioningCad)
+      })
+      .sort((a, b) => rankingCpp(b) - rankingCpp(a))
+
+    if (deals.length === 0) {
+      return c.json({ deals: [], explanation: explainEmpty(db, body.origin, body.destination) })
+    }
+    return c.json({ deals })
   })
 
   app.get('/api/scans', c => {

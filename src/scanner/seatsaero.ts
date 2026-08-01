@@ -77,6 +77,34 @@ export async function fetchAvailability(cfg: Config, fetchFn: typeof fetch = fet
   return rows
 }
 
+export async function fetchSearch(
+  cfg: Config, origin: string, destination: string, startDate: string, endDate: string,
+  fetchFn: typeof fetch = fetch,
+): Promise<AwardRow[]> {
+  const rows: AwardRow[] = []
+  const take = 500
+  let skip = 0
+  for (let page = 0; page < cfg.maxPagesPerProgram; page++) {
+    const url = new URL(`${BASE}/search`)
+    url.searchParams.set('origin_airport', origin)
+    url.searchParams.set('destination_airport', destination)
+    url.searchParams.set('start_date', startDate)
+    url.searchParams.set('end_date', endDate)
+    url.searchParams.set('take', String(take))
+    url.searchParams.set('sources', Object.keys(cfg.ratios).join(','))
+    if (skip > 0) url.searchParams.set('skip', String(skip))
+    const res = await fetchFn(url.toString(), {
+      headers: { 'Partner-Authorization': cfg.seatsAeroKey, Accept: 'application/json' },
+    })
+    if (!res.ok) throw new Error(`seats.aero ${res.status}: ${await res.text()}`)
+    const json = await res.json()
+    rows.push(...parseCachedSearch(json, cfg))
+    if (!json.hasMore) break
+    skip += take
+  }
+  return rows
+}
+
 export async function fetchBulkAvailability(
   cfg: Config,
   fetchFn: typeof fetch = fetch,
