@@ -82,7 +82,7 @@ Secrets saved through the UI are stored in SQLite but are write-only through the
 | `seatsAeroKey` | `SEATS_AERO_KEY` | seats.aero Partner API key |
 | `origin` | `ORIGIN` | Three-letter home-airport IATA code |
 | `origins` | `ORIGINS` | Origins to scan with positioning costs, e.g. `YYC:0,YVR:150,LAX:280` |
-| `maxPagesPerProgram` | `MAX_PAGES_PER_PROGRAM` | Page cap per program on bulk scans; truncation is logged and recorded on the scan |
+| `maxPagesPerProgram` | `MAX_PAGES_PER_PROGRAM` | Page cap per program on bulk scans (default 150, 500 rows per page); truncation is logged and recorded on the scan |
 | `pointsProgram` | — | Display name for your points currency |
 | `pointsBalance` | `POINTS_BALANCE` (`MR_BALANCE` legacy) | Available points balance |
 | `currency` | — | Display currency for cash comparisons |

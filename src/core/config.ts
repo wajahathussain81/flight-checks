@@ -46,7 +46,7 @@ export function defaultConfig(): Config {
     thresholds: { economy: 1.75, premiumConservative: 3.0 },
     minValue: { economy: 400, premium: 1200 },
     maxPerRoute: 3,
-    maxPagesPerProgram: 40,
+    maxPagesPerProgram: 150,
     alertImprovement: 0.15,
     scanSchedule: { times: ['07:00', '19:00'], timezone: 'America/Edmonton' },
   }
