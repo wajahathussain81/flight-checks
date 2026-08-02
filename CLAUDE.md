@@ -1,23 +1,32 @@
 # flight-checks
 
-Self-hosted award-flight deal watcher. It scans seats.aero from a configurable home airport, prices deals against static regional cash-fare estimates, ranks them in cents per point, emails an optional digest, and serves a dashboard for filtering, saving, dismissing, and scanning deals.
+Self-hosted award-flight deal watcher. It scans seats.aero worldwide from a configured set of origins, prices deals against distance-based cash-fare estimates, ranks them in cents per point after a per-origin positioning cost, emails an optional digest, and serves a dashboard for searching, filtering, saving, dismissing, and scanning deals.
 
 ## Key documents
 
 - Spec: `docs/superpowers/specs/2026-07-18-flight-checks-design.md`
 - Implementation plan: `docs/superpowers/plans/2026-07-18-flight-checks.md`
 - Open-source app plan: `docs/superpowers/plans/2026-07-29-open-source-app.md`
+- Worldwide discovery spec: `docs/superpowers/specs/2026-07-31-worldwide-discovery-design.md`
+- Worldwide discovery plan: `docs/superpowers/plans/2026-07-31-worldwide-discovery.md`
 
 ## Architecture
 
-Single TypeScript ESM package (Node 22, strict mode, `NodeNext` modules). The backend runs through `tsx`; Vite builds the dashboard. Two entry points share one SQLite database: the scanner owns `scans`/`snapshots`/`alerts`, while the server owns `settings`/`deal_status`/`watches`, and both read everything.
+Single TypeScript ESM package (Node 22, strict mode, `NodeNext` modules). The backend runs through `tsx`; Vite builds the dashboard. Two entry points share one SQLite database: the scanner owns `scans`/`snapshots`/`alerts`/`route_coverage`, while the server owns `settings`/`deal_status`/`watches`, and both read everything.
 
-All application configuration is available through settings, including secrets. `loadEffectiveConfig(db, env)` in `src/core/settings.ts` applies environment variables over database settings over defaults. Secret settings are write-only in API responses. Manual full and country-scoped scans are launched directly as child processes; no systemd scan service is involved. Country-scoped scans set `scans.scope` to the country and never send digests or record alerts. `/api/deals` serves the newest finished full scan or matching country scan. Trip watches are server-owned rows the scanner evaluates on full scans: each active watch filters the scan's scored deals by travel window, country exclusions, continents, themes, and cabins, and its top-N appears in the digest without recording alerts.
+All application configuration is available through settings, including secrets. `loadEffectiveConfig(db, env)` in `src/core/settings.ts` applies environment variables over database settings over defaults. Secret settings are write-only in API responses. Manual full and country-scoped scans are launched directly as child processes; no systemd scan service is involved. Country-scoped scans set `scans.scope` to the country and never send digests or record alerts. `/api/deals` serves the newest finished full scan or matching country scan. Trip watches are server-owned rows the scanner evaluates on full scans: each active watch filters the scan's scored deals by travel window, country exclusions, continents, themes, and cabins, and its top-N appears in the digest without recording alerts. `maxPerRoute` (default 1) caps how many results a single route may contribute, so one strong destination cannot fill every slot.
 
-- `src/scanner/` — seats.aero pull → prefilter → static fare estimate → score → append-only snapshot → optional digest
+Full scans pull `GET /partnerapi/availability` once per configured program per distinct origin continent and filter the results to `cfg.origins` locally, because that endpoint has no origin-airport filter. A per-program page cap (`maxPagesPerProgram`) bounds the volume; whenever it truncates a program the scan logs it and records the program in `scans.truncated`, so a partial scan is never mistaken for full coverage. Country-scoped scans still use the narrower `/search` path.
+
+`route_coverage` is refreshed weekly from `GET /partnerapi/routes` per program. It lets an empty result distinguish "monitored but nothing available" from "no configured program monitors this route" — and in the latter case name the programs that reach the destination from a different origin, which is the signal that positioning elsewhere would unlock it.
+
+`POST /api/search` is a synchronous on-demand lookup against seats.aero's cache. It scores with the same functions as the scanner and deliberately writes no snapshots, so history and trend charts stay clean. Live Search is a commercial-partner endpoint and is unavailable on Pro, so the UI must never imply real-time inventory.
+
+- `src/scanner/` — seats.aero pull → prefilter → distance-based fare estimate → score with positioning penalty → append-only snapshot → optional digest
 - `src/server/` — Hono API, static dashboard host, built-in scheduler, and child-process scan trigger
-- `src/web/` — React and Vite dashboard, setup wizard, settings, deal filters, and history
-- `src/core/` — configuration, settings, types, valuation, prefiltering, airport metadata, and SQLite
+- `src/web/` — React and Vite dashboard, setup wizard, settings, on-demand search, deal filters, and history
+- `src/core/` — configuration, settings, types, valuation, prefiltering, airport metadata, fares, route coverage, and SQLite
+- `src/core/airports.data.json` — vendored OurAirports subset (public domain), regenerated by `scripts/build-airports.mjs`; never fetched at runtime
 - `data/flights.db` — SQLite data; append-only snapshots power history charts
 
 ## Commands
@@ -31,7 +40,8 @@ All application configuration is available through settings, including secrets. 
 
 ## Hard rules
 
-- **No web scraping.** External services are the seats.aero Partner API and SMTP. Cash comparisons are static regional estimates in `src/core/regions.ts`; change `src/scanner/pricing.ts` to introduce another pricing source.
+- **No web scraping.** External services are the seats.aero Partner API and SMTP. Cash comparisons are distance-interpolated estimates in `src/core/fares.ts`, keyed off great-circle distance from the vendored airport dataset; change `src/scanner/pricing.ts` to introduce another pricing source.
+- **Live Search is unavailable.** `POST /partnerapi/live` is commercial-partners only, explicitly not available on Pro. On-demand lookups query the cache; UI copy must say so.
 - **Secrets never belong in git.** Local secrets belong in ignored environment files or the settings database.
 - Ranking is cents per point after applying the configured transfer ratio, never cents per airline mile.
 - Premium ranking uses the conservative score. Alert thresholds, minimum values, route caps, and re-alert improvement are configuration.
@@ -46,4 +56,4 @@ Maintainer-specific deployment notes live in `CLAUDE.local.md` (gitignored).
 
 ## Domain cheat-sheet
 
-The default points program is Amex Membership Rewards Canada. Default transfer ratios, keyed by seats.aero `Source`, are aeroplan 1:1, british 1:1, flyingblue 0.75, delta 0.75, and etihad 0.75. Rows whose source is not configured are dropped. Non-CAD taxes fall back to regional estimates. The default value benchmarks are 1.0 cent per point for statement credit and approximately 1.75 cents per point for fixed-points travel.
+The default points program is Amex Membership Rewards Canada. Default transfer ratios, keyed by seats.aero `Source`, are aeroplan 1:1, british 1:1, flyingblue 0.75, delta 0.75, and etihad 0.75. Rows whose source is not configured are dropped. Non-CAD taxes fall back to regional estimates. Origins are configured as `{ code, positioningCad }`; the positioning cost is subtracted from a deal's cash value before scoring so one ranked list stays comparable across origins. The default value benchmarks are 1.0 cent per point for statement credit and approximately 1.75 cents per point for fixed-points travel.
