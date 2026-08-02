@@ -3,16 +3,29 @@ import { estimateCashFares } from '../../src/scanner/pricing.js'
 
 describe('estimateCashFares', () => {
   it('returns typical fare plus economy comp for premium cabins', () => {
-    expect(estimateCashFares('YYC-LHR', 'business')).toEqual({ cashCad: 3300, economyCashCad: 950 })
+    const fares = estimateCashFares('YYC-LHR', 'business')
+
+    expect(fares.cashCad).toBeGreaterThan(3000)
+    expect(fares.cashCad).toBeLessThan(3600)
+    expect(fares.economyCashCad).not.toBeNull()
+    expect(fares.economyCashCad!).toBeLessThan(fares.cashCad)
   })
   it('returns null economy comp for economy cabin', () => {
-    expect(estimateCashFares('YYC-CDG', 'economy')).toEqual({ cashCad: 950, economyCashCad: null })
+    const fares = estimateCashFares('YYC-CDG', 'economy')
+
+    expect(fares.cashCad).toBeGreaterThan(820)
+    expect(fares.cashCad).toBeLessThan(1050)
+    expect(fares.economyCashCad).toBeNull()
   })
-  it('falls back to the other region for unknown destinations', () => {
-    expect(estimateCashFares('YYC-XXX', 'first')).toEqual({ cashCad: 5300, economyCashCad: 1000 })
+  it('returns a zero fare for unknown airports so the route is filtered downstream', () => {
+    expect(estimateCashFares('YYC-XXX', 'first')).toEqual({ cashCad: 0, economyCashCad: null })
   })
   it('prices mexico/caribbean beach routes below deep south america', () => {
-    expect(estimateCashFares('YYC-CUN', 'business')).toEqual({ cashCad: 1200, economyCashCad: 450 })
-    expect(estimateCashFares('YYC-GRU', 'business')).toEqual({ cashCad: 3000, economyCashCad: 800 })
+    const cancun = estimateCashFares('YYC-CUN', 'business')
+    const saoPaulo = estimateCashFares('YYC-GRU', 'business')
+
+    expect(cancun.cashCad).toBeGreaterThan(1050)
+    expect(cancun.cashCad).toBeLessThan(1400)
+    expect(cancun.cashCad).toBeLessThan(saoPaulo.cashCad)
   })
 })

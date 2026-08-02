@@ -78,12 +78,12 @@ export const triggerScan = async (country?: string): Promise<void> => {
 export interface WatchRow {
   id: number; name: string; enabled: boolean; dateFrom: string; dateTo: string
   excludeCountries: string[]; includeContinents: string[]; themes: string[]; cabins: string[]
-  topN: number; createdAt: string; state: 'active' | 'expired' | 'disabled'
+  topN: number; maxPerRoute: number; createdAt: string; state: 'active' | 'expired' | 'disabled'
 }
 export interface WatchInput {
   name: string; enabled: boolean; dateFrom: string; dateTo: string
   excludeCountries: string[]; includeContinents: string[]; themes: string[]; cabins: string[]
-  topN: number
+  topN: number; maxPerRoute: number
 }
 export const fetchWatches = () => get<{ watches: WatchRow[] }>('/api/watches').then(r => r.watches)
 export const fetchWatchDeals = (id: number) =>

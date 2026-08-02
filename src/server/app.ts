@@ -2,14 +2,19 @@ import { Hono } from 'hono'
 import { getSettings, getDealStatuses, setDealStatus, putSetting, deleteSetting, alertKey, type DB } from '../core/db.js'
 import { SETTING_KEYS, SECRET_KEYS, validateSetting, loadEffectiveConfig, type SettingKey } from '../core/settings.js'
 import { defaultConfig, configComplete, digestReady, type Config, type SmtpConfig } from '../core/config.js'
-import { AIRPORT_CITY, airportLabel, COUNTRY_CONTINENT, continentOf } from '../core/regions.js'
+import {
+  AIRPORT_CITY, airportLabel, continentOf, continentOfAirport, COUNTRY_CONTINENT, countryOf,
+} from '../core/regions.js'
 import {
   createWatch, deleteWatch, getWatch, listWatches, matchWatch, updateWatch,
   validateWatchInput, watchState, type WatchInput,
 } from '../core/watches.js'
-import { probeKey } from '../scanner/seatsaero.js'
+import { probeKey, fetchSearch } from '../scanner/seatsaero.js'
 import type { MailTransport } from '../scanner/digest.js'
 import nodemailer from 'nodemailer'
+import { estimateCashFares } from '../scanner/pricing.js'
+import { scoreDeal, rankingCpp } from '../core/valuation.js'
+import { explainEmpty } from '../core/coverage.js'
 
 interface SnapshotRow {
   id: number; scan_id: number; route: string; date: string; cabin: string; program: string
@@ -75,8 +80,8 @@ export function createApp(
     if (q.cabin) rows = rows.filter(d => d.cabin === q.cabin)
     if (q.month) rows = rows.filter(d => d.date.startsWith(q.month))
     if (q.minCpp) rows = rows.filter(d => rankOf(d) >= Number(q.minCpp))
-    if (q.country) rows = rows.filter(d => AIRPORT_CITY[destOf(d.route)]?.country === q.country)
-    if (q.continent) rows = rows.filter(d => continentOf(AIRPORT_CITY[destOf(d.route)]?.country ?? '') === q.continent)
+    if (q.country) rows = rows.filter(d => countryOf(destOf(d.route)) === q.country)
+    if (q.continent) rows = rows.filter(d => continentOfAirport(destOf(d.route)) === q.continent)
     if (q.q) {
       const needle = q.q.toLowerCase()
       rows = rows.filter(d => d.route.toLowerCase().includes(needle) || airportLabel(destOf(d.route)).toLowerCase().includes(needle))
@@ -94,7 +99,12 @@ export function createApp(
   })
 
   app.get('/api/meta', c => {
-    const countries = [...new Set(Object.values(AIRPORT_CITY).map(i => i.country))].sort()
+    // Countries you can actually filter to: everything seen in scanned data, unioned
+    // with the curated list so the dropdown is populated before the first scan.
+    const seen = db.prepare('SELECT DISTINCT route FROM snapshots').all() as Array<{ route: string }>
+    const seenCountries = seen.map(r => countryOf(destOf(r.route))).filter(Boolean)
+    const curated = Object.values(AIRPORT_CITY).map(i => i.country)
+    const countries = [...new Set([...curated, ...seenCountries])].sort()
     const continents = [...new Set(countries.map(continentOf))].sort()
     const countryContinents = Object.fromEntries(countries.map(cn => [cn, continentOf(cn)]))
     return c.json({ countries, continents, countryContinents, pointsBalance: loadEffectiveConfig(db, env).pointsBalance })
@@ -268,6 +278,37 @@ export function createApp(
              cash_cad, miles
       FROM snapshots WHERE route = ? AND cabin = ? ORDER BY id ASC`).all(route, cabin)
     return c.json({ points })
+  })
+
+  app.post('/api/search', async c => {
+    const body = await c.req.json().catch(() => null) as {
+      origin?: string; destination?: string; dateFrom?: string; dateTo?: string; cabins?: string[]
+    } | null
+    if (!body?.origin || !body.destination || !body.dateFrom || !body.dateTo) {
+      return c.json({ error: 'origin, destination, dateFrom and dateTo are required' }, 400)
+    }
+
+    const cfg = loadEffectiveConfig(db, env)
+    let rows
+    try {
+      rows = await fetchSearch(cfg, body.origin, body.destination, body.dateFrom, body.dateTo)
+    } catch (err) {
+      return c.json({ error: `seats.aero request failed: ${err}` }, 502)
+    }
+
+    const positioningCad = cfg.origins.find(o => o.code === body.origin)?.positioningCad ?? 0
+    const deals = rows
+      .filter(r => !body.cabins?.length || body.cabins.includes(r.cabin))
+      .map(r => {
+        const fares = estimateCashFares(r.route, r.cabin)
+        return scoreDeal(r, fares.cashCad, fares.economyCashCad, cfg.ratios[r.program] ?? 1, positioningCad)
+      })
+      .sort((a, b) => rankingCpp(b) - rankingCpp(a))
+
+    if (deals.length === 0) {
+      return c.json({ deals: [], explanation: explainEmpty(db, body.origin, body.destination) })
+    }
+    return c.json({ deals })
   })
 
   app.get('/api/scans', c => {

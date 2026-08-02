@@ -1,5 +1,6 @@
 export interface SmtpConfig { host: string; port: number; user: string; password: string }
 export interface ScanSchedule { times: string[]; timezone: string }
+export interface OriginConfig { code: string; positioningCad: number }
 
 export interface Config {
   seatsAeroKey: string
@@ -8,6 +9,7 @@ export interface Config {
   digestEnabled: boolean
   dbPath: string
   origin: string
+  origins: OriginConfig[]
   pointsProgram: string
   pointsBalance: number
   currency: string
@@ -16,6 +18,7 @@ export interface Config {
   thresholds: { economy: number; premiumConservative: number }
   minValue: { economy: number; premium: number }
   maxPerRoute: number
+  maxPagesPerProgram: number
   alertImprovement: number
   scanSchedule: ScanSchedule
 }
@@ -28,6 +31,13 @@ export function defaultConfig(): Config {
     digestEnabled: true,
     dbPath: 'data/flights.db',
     origin: 'YYC',
+    origins: [
+      { code: 'YYC', positioningCad: 0 },
+      { code: 'YVR', positioningCad: 150 },
+      { code: 'SEA', positioningCad: 200 },
+      { code: 'YYZ', positioningCad: 250 },
+      { code: 'LAX', positioningCad: 280 },
+    ],
     pointsProgram: 'Amex MR (Canada)',
     pointsBalance: 220000,
     currency: 'CAD',
@@ -36,6 +46,7 @@ export function defaultConfig(): Config {
     thresholds: { economy: 1.75, premiumConservative: 3.0 },
     minValue: { economy: 400, premium: 1200 },
     maxPerRoute: 3,
+    maxPagesPerProgram: 150,
     alertImprovement: 0.15,
     scanSchedule: { times: ['07:00', '19:00'], timezone: 'America/Edmonton' },
   }
@@ -57,6 +68,13 @@ export function applyEnv(cfg: Config, env: Record<string, string | undefined>): 
   if (env.MIN_VALUE_ECONOMY) cfg.minValue.economy = Number(env.MIN_VALUE_ECONOMY)
   if (env.MIN_VALUE_PREMIUM) cfg.minValue.premium = Number(env.MIN_VALUE_PREMIUM)
   if (env.MAX_PER_ROUTE) cfg.maxPerRoute = Number(env.MAX_PER_ROUTE)
+  if (env.MAX_PAGES_PER_PROGRAM) cfg.maxPagesPerProgram = Number(env.MAX_PAGES_PER_PROGRAM)
+  if (env.ORIGINS) {
+    cfg.origins = env.ORIGINS.split(',').map(entry => {
+      const [code, cost] = entry.split(':')
+      return { code: code.trim(), positioningCad: Number(cost ?? 0) }
+    })
+  }
   return cfg
 }
 

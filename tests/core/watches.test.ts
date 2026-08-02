@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { openDb, type DB } from '../../src/core/db.js'
 import {
   createWatch, deleteWatch, getWatch, listWatches, matchWatch, updateWatch,
-  validateWatchInput, watchState, type WatchInput,
+  validateWatchInput, watchState, type Watch, type WatchInput,
 } from '../../src/core/watches.js'
 import { rankingCpp } from '../../src/core/valuation.js'
 import type { ScoredDeal } from '../../src/core/types.js'
@@ -113,7 +113,8 @@ describe('matchWatch', () => {
       deal({ date: '2027-03-10' }), deal({ date: '2027-04-15' }),
       deal({ date: '2027-03-09' }), deal({ date: '2027-04-16' }),
     ]
-    expect(matchWatch(watch(), deals, rankingCpp).map(d => d.date).sort())
+    // These deals share a route, so raise the per-route cap to isolate date filtering.
+    expect(matchWatch({ ...watch(), maxPerRoute: 99 }, deals, rankingCpp).map(d => d.date).sort())
       .toEqual(['2027-03-10', '2027-04-15'])
   })
 
@@ -149,5 +150,62 @@ describe('matchWatch', () => {
     const got = matchWatch(w, deals, rankingCpp)
     // business ranks on conservative (2.0), so MBJ economy (3.0) wins
     expect(got.map(d => d.route)).toEqual(['YYC-MBJ', 'YYC-PUJ'])
+  })
+})
+
+describe('maxPerRoute', () => {
+  const baseWatch: Watch = {
+    id: 1, name: 'test', enabled: true, dateFrom: '2027-03-10', dateTo: '2027-04-15',
+    excludeCountries: [], includeContinents: [], themes: [], cabins: [],
+    topN: 5, maxPerRoute: 1, createdAt: '2026-07-30',
+  }
+
+  const routeDeal = (route: string, cpp: number, date: string): ScoredDeal => ({
+    route, date, cabin: 'business', program: 'aeroplan', miles: 30_000,
+    taxesCad: 100, seats: 4, direct: true, cashCad: 1200, economyCashCad: 450,
+    mrPoints: 30_000, cppRaw: cpp, cppConservative: cpp,
+  })
+
+  it('caps how many results one route may contribute, even when it outranks other routes', () => {
+    const watch = { ...baseWatch, topN: 3, maxPerRoute: 1 }
+    const deals = [
+      routeDeal('YYC-CUN', 3.0, '2027-04-03'),
+      routeDeal('YYC-CUN', 2.9, '2027-04-04'),
+      routeDeal('YYC-AUH', 2.1, '2027-04-05'),
+    ]
+    const result = matchWatch(watch, deals, rankingCpp)
+    expect(result.map(d => d.route)).toEqual(['YYC-CUN', 'YYC-AUH'])
+  })
+
+  it('still fills topN from distinct routes', () => {
+    const watch = { ...baseWatch, topN: 2, maxPerRoute: 1 }
+    const deals = [
+      routeDeal('YYC-CUN', 3.0, '2027-04-03'),
+      routeDeal('YYC-AUH', 2.1, '2027-04-05'),
+      routeDeal('YYC-BCN', 2.0, '2027-04-06'),
+    ]
+    expect(matchWatch(watch, deals, rankingCpp)).toHaveLength(2)
+  })
+
+  it('allows a route to contribute more than one row when maxPerRoute is raised', () => {
+    const watch = { ...baseWatch, topN: 3, maxPerRoute: 2 }
+    const deals = [
+      routeDeal('YYC-CUN', 3.0, '2027-04-03'),
+      routeDeal('YYC-CUN', 2.9, '2027-04-04'),
+      routeDeal('YYC-AUH', 2.1, '2027-04-05'),
+    ]
+    const result = matchWatch(watch, deals, rankingCpp)
+    expect(result.map(d => d.route)).toEqual(['YYC-CUN', 'YYC-CUN', 'YYC-AUH'])
+  })
+
+  it('keeps results ordered descending by rank', () => {
+    const watch = { ...baseWatch, topN: 3, maxPerRoute: 2 }
+    const deals = [
+      routeDeal('YYC-AUH', 2.1, '2027-04-05'),
+      routeDeal('YYC-CUN', 3.0, '2027-04-03'),
+      routeDeal('YYC-CUN', 2.9, '2027-04-04'),
+    ]
+    const result = matchWatch(watch, deals, rankingCpp)
+    expect(result.map(d => d.cppConservative)).toEqual([3.0, 2.9, 2.1])
   })
 })

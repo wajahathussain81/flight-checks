@@ -21,9 +21,10 @@ import {
 import { Sparkline } from './Sparkline.js'
 import { Wizard } from './Wizard.js'
 import { WatchesTab } from './WatchesTab.js'
+import { SearchTab } from './SearchTab.js'
 import { airportLabel } from '../core/regions.js'
 
-type Tab = 'deals' | 'watches' | 'shortlist' | 'history' | 'runs' | 'settings'
+type Tab = 'deals' | 'search' | 'watches' | 'shortlist' | 'history' | 'runs' | 'settings'
 type SortColumn = 'cpp' | 'date' | 'mr_points' | 'seats' | 'cash_cad'
 
 const alertKeyOf = (d: DealRow) => `${d.route}|${d.date}|${d.cabin}|${d.program}`
@@ -559,7 +560,7 @@ export default function App() {
       <h1>✈️ Flight Checks</h1>
       {banner && <p className="banner" onClick={() => setBanner(null)}>{banner}</p>}
       <nav>
-        {(['deals', 'watches', 'shortlist', 'history', 'runs', 'settings'] as Tab[]).map(currentTab => (
+        {(['deals', 'search', 'watches', 'shortlist', 'history', 'runs', 'settings'] as Tab[]).map(currentTab => (
           <button key={currentTab} className={tab === currentTab ? 'active' : ''} onClick={() => setTab(currentTab)}>
             {currentTab[0].toUpperCase() + currentTab.slice(1)}
           </button>
@@ -568,6 +569,7 @@ export default function App() {
       {tab === 'deals' && (
         <DealsTab meta={meta} onPick={onPick} onError={onError} />
       )}
+      {tab === 'search' && <SearchTab onError={onError} />}
       {tab === 'watches' && <WatchesTab meta={meta} onError={onError} />}
       {tab === 'shortlist' && <ShortlistTab onPick={onPick} onError={onError} />}
       {tab === 'history' && <HistoryTab route={picked.route} cabin={picked.cabin} onError={onError} />}

@@ -1,6 +1,7 @@
 import type { Config } from '../core/config.js'
 import type { AwardRow, Cabin } from '../core/types.js'
-import { regionOf, TAX_ESTIMATE_CAD, AIRPORT_REGION, AIRPORT_CITY } from '../core/regions.js'
+import { regionOf, TAX_ESTIMATE_CAD, AIRPORT_REGION, countryOf } from '../core/regions.js'
+import { airportInfo } from '../core/airports.js'
 
 const BASE = 'https://seats.aero/partnerapi'
 const isoDay = (d: Date): string => d.toISOString().slice(0, 10)
@@ -49,8 +50,8 @@ export async function fetchAvailability(cfg: Config, fetchFn: typeof fetch = fet
   // Cached search returns nothing without explicit destinations.
   // Skip the origin and destinations in excluded countries.
   const destinations = Object.keys(AIRPORT_REGION)
-    .filter(a => a !== cfg.origin && !cfg.excludedCountries.includes(AIRPORT_CITY[a]?.country ?? ''))
-    .filter(a => !country || AIRPORT_CITY[a]?.country === country)
+    .filter(a => a !== cfg.origin && !cfg.excludedCountries.includes(countryOf(a)))
+    .filter(a => !country || countryOf(a) === country)
     .join(',')
   const take = 1000
   const maxPages = 100 // runaway guard: ~12 pages observed live with the sources filter
@@ -74,6 +75,109 @@ export async function fetchAvailability(cfg: Config, fetchFn: typeof fetch = fet
     skip += take
   }
   return rows
+}
+
+export async function fetchSearch(
+  cfg: Config, origin: string, destination: string, startDate: string, endDate: string,
+  fetchFn: typeof fetch = fetch,
+): Promise<AwardRow[]> {
+  const rows: AwardRow[] = []
+  const take = 500
+  let skip = 0
+  for (let page = 0; page < cfg.maxPagesPerProgram; page++) {
+    const url = new URL(`${BASE}/search`)
+    url.searchParams.set('origin_airport', origin)
+    url.searchParams.set('destination_airport', destination)
+    url.searchParams.set('start_date', startDate)
+    url.searchParams.set('end_date', endDate)
+    url.searchParams.set('take', String(take))
+    url.searchParams.set('sources', Object.keys(cfg.ratios).join(','))
+    if (skip > 0) url.searchParams.set('skip', String(skip))
+    const res = await fetchFn(url.toString(), {
+      headers: { 'Partner-Authorization': cfg.seatsAeroKey, Accept: 'application/json' },
+    })
+    if (!res.ok) throw new Error(`seats.aero ${res.status}: ${await res.text()}`)
+    const json = await res.json()
+    rows.push(...parseCachedSearch(json, cfg))
+    if (!json.hasMore) break
+    skip += take
+  }
+  return rows
+}
+
+export async function fetchBulkAvailability(
+  cfg: Config,
+  fetchFn: typeof fetch = fetch,
+): Promise<{ rows: AwardRow[]; truncated: string[]; failures: string[] }> {
+  const originCodes = new Set(cfg.origins.map(o => o.code))
+  const regions = [...new Set(
+    cfg.origins.map(o => airportInfo(o.code)?.continent).filter((c): c is string => Boolean(c)),
+  )]
+  const rows: AwardRow[] = []
+  const truncated: string[] = []
+  const failures: string[] = []
+  const take = 500
+
+  for (const program of Object.keys(cfg.ratios)) {
+    let hitCap = false
+    for (const region of regions) {
+      let skip = 0
+      for (let page = 0; page < cfg.maxPagesPerProgram; page++) {
+        const url = new URL(`${BASE}/availability`)
+        url.searchParams.set('source', program)
+        url.searchParams.set('origin_region', region)
+        url.searchParams.set('take', String(take))
+        url.searchParams.set('skip', String(skip))
+        let json: { hasMore?: boolean }
+        try {
+          const res = await fetchFn(url.toString(), {
+            headers: { 'Partner-Authorization': cfg.seatsAeroKey, Accept: 'application/json' },
+          })
+          if (!res.ok) throw new Error(`seats.aero ${res.status}`)
+          json = await res.json()
+        } catch (err) {
+          // One bad response must not fail the whole scan, but it must never be
+          // silent either: a scan that pulled nothing because every program errored
+          // has to be distinguishable from one that genuinely found nothing.
+          failures.push(`${program}/${region}: ${err}`)
+          break
+        }
+        rows.push(...parseCachedSearch(json, cfg).filter(r => originCodes.has(r.route.split('-')[0])))
+        if (!json.hasMore) break
+        skip += take
+        if (page === cfg.maxPagesPerProgram - 1) hitCap = true
+      }
+    }
+    if (hitCap) truncated.push(program)
+  }
+  return { rows, truncated, failures }
+}
+
+export async function fetchRoutes(
+  cfg: Config, source: string, fetchFn: typeof fetch = fetch,
+): Promise<Array<{ origin: string; destination: string }>> {
+  const url = new URL(`${BASE}/routes`)
+  url.searchParams.set('source', source)
+  const res = await fetchFn(url.toString(), {
+    headers: { 'Partner-Authorization': cfg.seatsAeroKey, Accept: 'application/json' },
+  })
+  if (!res.ok) throw new Error(`seats.aero ${res.status}`)
+  const json = await res.json() as unknown
+  // /routes returns a bare top-level array; /search and /availability wrap rows in
+  // `data`. Accept either, and throw on anything else rather than returning an empty
+  // list — a shape change must not look like "this program monitors no routes".
+  type RouteRow = { OriginAirport?: string; DestinationAirport?: string }
+  const rows: RouteRow[] | null = Array.isArray(json)
+    ? json as RouteRow[]
+    : Array.isArray((json as { data?: unknown })?.data)
+      ? (json as { data: RouteRow[] }).data
+      : null
+  if (rows === null) {
+    throw new Error(`seats.aero /routes: unexpected response shape for ${source}`)
+  }
+  return rows
+    .filter(r => r.OriginAirport && r.DestinationAirport)
+    .map(r => ({ origin: r.OriginAirport as string, destination: r.DestinationAirport as string }))
 }
 
 export async function probeKey(key: string, fetchFn: typeof fetch = fetch): Promise<{ ok: boolean; message: string }> {

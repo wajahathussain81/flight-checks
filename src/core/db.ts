@@ -15,12 +15,15 @@ CREATE TABLE IF NOT EXISTS scans (
   finalists INTEGER NOT NULL DEFAULT 0,
   errors TEXT NOT NULL DEFAULT '',
   scope TEXT NOT NULL DEFAULT 'full'
+  ,truncated TEXT NOT NULL DEFAULT '[]'
 );
 CREATE TABLE IF NOT EXISTS snapshots (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   scan_id INTEGER NOT NULL REFERENCES scans(id),
   created_at TEXT NOT NULL,
-  route TEXT NOT NULL, date TEXT NOT NULL, cabin TEXT NOT NULL, program TEXT NOT NULL,
+  route TEXT NOT NULL,
+  origin TEXT NOT NULL DEFAULT '',
+  date TEXT NOT NULL, cabin TEXT NOT NULL, program TEXT NOT NULL,
   miles INTEGER NOT NULL, taxes_cad REAL NOT NULL,
   cash_cad REAL NOT NULL, economy_cash_cad REAL,
   mr_points INTEGER NOT NULL, cpp_raw REAL NOT NULL, cpp_conservative REAL NOT NULL,
@@ -59,7 +62,15 @@ CREATE TABLE IF NOT EXISTS watches (
   themes TEXT NOT NULL DEFAULT '[]',
   cabins TEXT NOT NULL DEFAULT '[]',
   top_n INTEGER NOT NULL DEFAULT 5,
+  max_per_route INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS route_coverage (
+  source TEXT NOT NULL,
+  origin TEXT NOT NULL,
+  destination TEXT NOT NULL,
+  last_seen TEXT NOT NULL,
+  PRIMARY KEY (source, origin, destination)
 );
 `
 
@@ -72,6 +83,17 @@ export function openDb(path: string): DB {
   if (!scanCols.some(c => c.name === 'scope')) {
     db.exec("ALTER TABLE scans ADD COLUMN scope TEXT NOT NULL DEFAULT 'full'")
   }
+  const watchCols = db.prepare('PRAGMA table_info(watches)').all() as Array<{ name: string }>
+  if (!watchCols.some(c => c.name === 'max_per_route')) {
+    db.exec('ALTER TABLE watches ADD COLUMN max_per_route INTEGER NOT NULL DEFAULT 1')
+  }
+  const snapCols = db.prepare('PRAGMA table_info(snapshots)').all() as Array<{ name: string }>
+  if (!snapCols.some(c => c.name === 'origin')) {
+    db.exec("ALTER TABLE snapshots ADD COLUMN origin TEXT NOT NULL DEFAULT 'YYC'")
+  }
+  if (!scanCols.some(c => c.name === 'truncated')) {
+    db.exec("ALTER TABLE scans ADD COLUMN truncated TEXT NOT NULL DEFAULT '[]'")
+  }
   return db
 }
 
@@ -82,21 +104,22 @@ export function startScan(db: DB, scope = 'full'): number {
 
 export function finishScan(
   db: DB, scanId: number,
-  stats: { rowsPulled: number; finalists: number; errors: string[] },
+  stats: { rowsPulled: number; finalists: number; errors: string[]; truncated?: string[] },
 ): void {
-  db.prepare('UPDATE scans SET finished_at = ?, rows_pulled = ?, finalists = ?, errors = ? WHERE id = ?')
-    .run(new Date().toISOString(), stats.rowsPulled, stats.finalists, stats.errors.join('\n'), scanId)
+  db.prepare('UPDATE scans SET finished_at = ?, rows_pulled = ?, finalists = ?, errors = ?, truncated = ? WHERE id = ?')
+    .run(new Date().toISOString(), stats.rowsPulled, stats.finalists, stats.errors.join('\n'),
+         JSON.stringify(stats.truncated ?? []), scanId)
 }
 
 export function insertSnapshots(db: DB, scanId: number, deals: ScoredDeal[]): void {
   const stmt = db.prepare(`INSERT INTO snapshots
-    (scan_id, created_at, route, date, cabin, program, miles, taxes_cad, cash_cad, economy_cash_cad,
+    (scan_id, created_at, route, origin, date, cabin, program, miles, taxes_cad, cash_cad, economy_cash_cad,
      mr_points, cpp_raw, cpp_conservative, seats, direct)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
   const now = new Date().toISOString()
   const insertAll = db.transaction((rows: ScoredDeal[]) => {
     for (const d of rows) {
-      stmt.run(scanId, now, d.route, d.date, d.cabin, d.program, d.miles, d.taxesCad,
+      stmt.run(scanId, now, d.route, d.route.split('-')[0], d.date, d.cabin, d.program, d.miles, d.taxesCad,
         d.cashCad, d.economyCashCad, d.mrPoints, d.cppRaw, d.cppConservative, d.seats, d.direct ? 1 : 0)
     }
   })
