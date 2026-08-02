@@ -13,6 +13,7 @@ export interface WatchInput {
   themes?: Theme[]
   cabins?: Cabin[]
   topN?: number
+  maxPerRoute?: number
 }
 
 export interface Watch {
@@ -26,6 +27,7 @@ export interface Watch {
   themes: Theme[]
   cabins: Cabin[]
   topN: number
+  maxPerRoute: number
   createdAt: string
 }
 
@@ -45,13 +47,16 @@ export function validateWatchInput(input: unknown): string | null {
   for (const t of w.themes ?? []) if (!(THEMES as readonly string[]).includes(t)) return `unknown theme: ${t}`
   for (const c of w.cabins ?? []) if (!CABINS.includes(c)) return `unknown cabin: ${c}`
   if (w.topN !== undefined && (!Number.isInteger(w.topN) || w.topN < 1)) return 'topN must be a positive integer'
+  if (w.maxPerRoute !== undefined && (!Number.isInteger(w.maxPerRoute) || w.maxPerRoute < 1)) {
+    return 'maxPerRoute must be a positive integer'
+  }
   return null
 }
 
 interface WatchRow {
   id: number; name: string; enabled: number; date_from: string; date_to: string
   exclude_countries: string; include_continents: string; themes: string; cabins: string
-  top_n: number; created_at: string
+  top_n: number; max_per_route: number; created_at: string
 }
 
 function parseRow(r: WatchRow): Watch {
@@ -62,7 +67,7 @@ function parseRow(r: WatchRow): Watch {
     includeContinents: JSON.parse(r.include_continents) as string[],
     themes: JSON.parse(r.themes) as Theme[],
     cabins: JSON.parse(r.cabins) as Cabin[],
-    topN: r.top_n, createdAt: r.created_at,
+    topN: r.top_n, maxPerRoute: r.max_per_route ?? 1, createdAt: r.created_at,
   }
 }
 
@@ -84,23 +89,24 @@ export function getWatch(db: DB, id: number): Watch | null {
 
 export function createWatch(db: DB, input: WatchInput): Watch {
   const res = db.prepare(`INSERT INTO watches
-    (name, enabled, date_from, date_to, exclude_countries, include_continents, themes, cabins, top_n, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+    (name, enabled, date_from, date_to, exclude_countries, include_continents, themes, cabins, top_n, max_per_route, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     input.name.trim(), input.enabled === false ? 0 : 1, input.dateFrom, input.dateTo,
     JSON.stringify(input.excludeCountries ?? []), JSON.stringify(input.includeContinents ?? []),
     JSON.stringify(input.themes ?? []), JSON.stringify(input.cabins ?? []),
-    input.topN ?? 5, new Date().toISOString())
+    input.topN ?? 5, input.maxPerRoute ?? 1, new Date().toISOString())
   return getWatch(db, Number(res.lastInsertRowid)) as Watch
 }
 
 export function updateWatch(db: DB, id: number, input: WatchInput): Watch | null {
   if (!getWatch(db, id)) return null
   db.prepare(`UPDATE watches SET name = ?, enabled = ?, date_from = ?, date_to = ?,
-    exclude_countries = ?, include_continents = ?, themes = ?, cabins = ?, top_n = ? WHERE id = ?`).run(
+    exclude_countries = ?, include_continents = ?, themes = ?, cabins = ?, top_n = ?,
+    max_per_route = ? WHERE id = ?`).run(
     input.name.trim(), input.enabled === false ? 0 : 1, input.dateFrom, input.dateTo,
     JSON.stringify(input.excludeCountries ?? []), JSON.stringify(input.includeContinents ?? []),
     JSON.stringify(input.themes ?? []), JSON.stringify(input.cabins ?? []),
-    input.topN ?? 5, id)
+    input.topN ?? 5, input.maxPerRoute ?? 1, id)
   return getWatch(db, id)
 }
 
@@ -131,5 +137,11 @@ export function matchWatch<T extends { route: string; date: string; cabin: strin
       return true
     })
     .sort((a, b) => rank(b) - rank(a))
-    .slice(0, watch.topN)
+    // Cap per-route contributions so one strong destination cannot fill every slot.
+    .reduce<T[]>((acc, deal) => {
+      if (acc.length >= watch.topN) return acc
+      if (acc.filter(d => d.route === deal.route).length >= watch.maxPerRoute) return acc
+      acc.push(deal)
+      return acc
+    }, [])
 }

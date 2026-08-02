@@ -11,7 +11,7 @@ const asError = (error: unknown) => error instanceof Error ? error : new Error(S
 
 const emptyForm: WatchInput = {
   name: '', enabled: true, dateFrom: '', dateTo: '',
-  excludeCountries: [], includeContinents: [], themes: [], cabins: [], topN: 5,
+  excludeCountries: [], includeContinents: [], themes: [], cabins: [], topN: 5, maxPerRoute: 1,
 }
 
 const toggleItem = (list: string[], item: string): string[] =>
@@ -20,7 +20,7 @@ const toggleItem = (list: string[], item: string): string[] =>
 const toInput = (w: WatchRow): WatchInput => ({
   name: w.name, enabled: w.enabled, dateFrom: w.dateFrom, dateTo: w.dateTo,
   excludeCountries: w.excludeCountries, includeContinents: w.includeContinents,
-  themes: w.themes, cabins: w.cabins, topN: w.topN,
+  themes: w.themes, cabins: w.cabins, topN: w.topN, maxPerRoute: w.maxPerRoute,
 })
 
 const watchSummary = (w: WatchRow): string => [
@@ -166,6 +166,12 @@ export function WatchesTab({ meta, onError }: { meta: Meta; onError: (error: Err
           <label htmlFor="watch-topn">Top deals per digest</label>
           <input id="watch-topn" type="number" min={1} value={form.topN}
             onChange={event => setForm(current => ({ ...current, topN: Number(event.target.value) }))} />
+        </div>
+        <div className="settings-row">
+          <label htmlFor="watch-maxperroute">Max per route</label>
+          <input id="watch-maxperroute" type="number" min={1} value={form.maxPerRoute}
+            onChange={event => setForm(current => ({ ...current, maxPerRoute: Number(event.target.value) }))} />
+          <span className="hint">1 shows a single deal per destination, so one route cannot fill every slot.</span>
         </div>
         <button onClick={() => void submit()}>{editing === null ? 'Create watch' : 'Save changes'}</button>
         {editing !== null && (

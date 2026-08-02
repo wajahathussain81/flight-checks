@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS watches (
   themes TEXT NOT NULL DEFAULT '[]',
   cabins TEXT NOT NULL DEFAULT '[]',
   top_n INTEGER NOT NULL DEFAULT 5,
+  max_per_route INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS route_coverage (
@@ -81,6 +82,10 @@ export function openDb(path: string): DB {
   const scanCols = db.prepare('PRAGMA table_info(scans)').all() as Array<{ name: string }>
   if (!scanCols.some(c => c.name === 'scope')) {
     db.exec("ALTER TABLE scans ADD COLUMN scope TEXT NOT NULL DEFAULT 'full'")
+  }
+  const watchCols = db.prepare('PRAGMA table_info(watches)').all() as Array<{ name: string }>
+  if (!watchCols.some(c => c.name === 'max_per_route')) {
+    db.exec('ALTER TABLE watches ADD COLUMN max_per_route INTEGER NOT NULL DEFAULT 1')
   }
   const snapCols = db.prepare('PRAGMA table_info(snapshots)').all() as Array<{ name: string }>
   if (!snapCols.some(c => c.name === 'origin')) {
