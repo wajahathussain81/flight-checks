@@ -64,7 +64,10 @@ export async function runScan(
         try {
           recordCoverage(db, source, await fetchRoutes(cfg, source))
         } catch (err) {
-          console.warn(`route coverage refresh failed for ${source}: ${err}`)
+          // Scan output goes to a detached child process, so a warning here is
+          // effectively invisible. Record it on the scan so a stale or empty
+          // coverage map is visible in the dashboard and digest.
+          errors.push(`route coverage (${source}): ${err}`)
         }
       }
     }

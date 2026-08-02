@@ -162,8 +162,22 @@ export async function fetchRoutes(
     headers: { 'Partner-Authorization': cfg.seatsAeroKey, Accept: 'application/json' },
   })
   if (!res.ok) throw new Error(`seats.aero ${res.status}`)
-  const json = await res.json() as { data?: Array<{ OriginAirport: string; DestinationAirport: string }> }
-  return (json.data ?? []).map(r => ({ origin: r.OriginAirport, destination: r.DestinationAirport }))
+  const json = await res.json() as unknown
+  // /routes returns a bare top-level array; /search and /availability wrap rows in
+  // `data`. Accept either, and throw on anything else rather than returning an empty
+  // list — a shape change must not look like "this program monitors no routes".
+  type RouteRow = { OriginAirport?: string; DestinationAirport?: string }
+  const rows: RouteRow[] | null = Array.isArray(json)
+    ? json as RouteRow[]
+    : Array.isArray((json as { data?: unknown })?.data)
+      ? (json as { data: RouteRow[] }).data
+      : null
+  if (rows === null) {
+    throw new Error(`seats.aero /routes: unexpected response shape for ${source}`)
+  }
+  return rows
+    .filter(r => r.OriginAirport && r.DestinationAirport)
+    .map(r => ({ origin: r.OriginAirport as string, destination: r.DestinationAirport as string }))
 }
 
 export async function probeKey(key: string, fetchFn: typeof fetch = fetch): Promise<{ ok: boolean; message: string }> {

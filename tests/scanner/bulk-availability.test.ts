@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { defaultConfig } from '../../src/core/config.js'
-import { fetchBulkAvailability } from '../../src/scanner/seatsaero.js'
+import { fetchBulkAvailability, fetchRoutes } from '../../src/scanner/seatsaero.js'
 
 const fixture = JSON.parse(readFileSync('tests/fixtures/availability-aeroplan.json', 'utf8'))
 
@@ -59,5 +59,38 @@ describe('fetchBulkAvailability', () => {
     })
     const { rows } = await fetchBulkAvailability(cfg, flaky as unknown as typeof fetch)
     expect(rows.length).toBeGreaterThan(0)
+  })
+})
+
+describe('fetchRoutes', () => {
+  const routeRow = (o: string, d: string) => ({
+    ID: `${o}-${d}`, OriginAirport: o, DestinationAirport: d, Source: 'aeroplan',
+  })
+
+  it('parses the bare top-level array the routes endpoint returns', async () => {
+    const cfg = { ...defaultConfig(), ratios: { aeroplan: 1 } }
+    const fetchFn = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) =>
+      new Response(JSON.stringify([routeRow('YYC', 'CUN'), routeRow('LAX', 'DPS')]), { status: 200 }))
+    const routes = await fetchRoutes(cfg, 'aeroplan', fetchFn as unknown as typeof fetch)
+    expect(routes).toEqual([
+      { origin: 'YYC', destination: 'CUN' },
+      { origin: 'LAX', destination: 'DPS' },
+    ])
+  })
+
+  it('still accepts a data-wrapped payload', async () => {
+    const cfg = { ...defaultConfig(), ratios: { aeroplan: 1 } }
+    const fetchFn = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) =>
+      new Response(JSON.stringify({ data: [routeRow('YYC', 'CUN')] }), { status: 200 }))
+    expect(await fetchRoutes(cfg, 'aeroplan', fetchFn as unknown as typeof fetch))
+      .toEqual([{ origin: 'YYC', destination: 'CUN' }])
+  })
+
+  it('throws on an unrecognised shape instead of reporting zero routes', async () => {
+    const cfg = { ...defaultConfig(), ratios: { aeroplan: 1 } }
+    const fetchFn = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) =>
+      new Response(JSON.stringify({ routes: [] }), { status: 200 }))
+    // Silently returning [] would read as "this program monitors nothing".
+    await expect(fetchRoutes(cfg, 'aeroplan', fetchFn as unknown as typeof fetch)).rejects.toThrow(/unexpected response shape/)
   })
 })
