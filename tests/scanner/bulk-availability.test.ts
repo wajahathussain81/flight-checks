@@ -36,6 +36,18 @@ describe('fetchBulkAvailability', () => {
     expect(truncated).toContain('aeroplan')
   })
 
+  it('reports a failure rather than returning an empty result silently', async () => {
+    const cfg = { ...defaultConfig(), ratios: { aeroplan: 1 } }
+    const unauthorized = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) =>
+      new Response('bad_partner_key', { status: 401 }))
+    const { rows, failures } = await fetchBulkAvailability(cfg, unauthorized as unknown as typeof fetch)
+    expect(rows).toEqual([])
+    // A scan that pulled nothing because auth failed must be distinguishable from
+    // one that genuinely found nothing.
+    expect(failures.length).toBeGreaterThan(0)
+    expect(failures.join(' ')).toContain('aeroplan')
+  })
+
   it('skips a failing program without failing the run', async () => {
     const cfg = { ...defaultConfig(), ratios: { aeroplan: 1, delta: 1 } }
     let call = 0

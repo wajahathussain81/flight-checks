@@ -108,13 +108,14 @@ export async function fetchSearch(
 export async function fetchBulkAvailability(
   cfg: Config,
   fetchFn: typeof fetch = fetch,
-): Promise<{ rows: AwardRow[]; truncated: string[] }> {
+): Promise<{ rows: AwardRow[]; truncated: string[]; failures: string[] }> {
   const originCodes = new Set(cfg.origins.map(o => o.code))
   const regions = [...new Set(
     cfg.origins.map(o => airportInfo(o.code)?.continent).filter((c): c is string => Boolean(c)),
   )]
   const rows: AwardRow[] = []
   const truncated: string[] = []
+  const failures: string[] = []
   const take = 500
 
   for (const program of Object.keys(cfg.ratios)) {
@@ -134,8 +135,12 @@ export async function fetchBulkAvailability(
           })
           if (!res.ok) throw new Error(`seats.aero ${res.status}`)
           json = await res.json()
-        } catch {
-          break // skip this program/region; one bad response must not fail the scan
+        } catch (err) {
+          // One bad response must not fail the whole scan, but it must never be
+          // silent either: a scan that pulled nothing because every program errored
+          // has to be distinguishable from one that genuinely found nothing.
+          failures.push(`${program}/${region}: ${err}`)
+          break
         }
         rows.push(...parseCachedSearch(json, cfg).filter(r => originCodes.has(r.route.split('-')[0])))
         if (!json.hasMore) break
@@ -145,7 +150,7 @@ export async function fetchBulkAvailability(
     }
     if (hitCap) truncated.push(program)
   }
-  return { rows, truncated }
+  return { rows, truncated, failures }
 }
 
 export async function fetchRoutes(

@@ -46,6 +46,7 @@ export async function runScan(
       const bulk = await withRetry(() => fetchBulkAvailability(cfg))
       rows = bulk.rows
       truncated = bulk.truncated
+      errors.push(...bulk.failures)
     }
   } catch (err) {
     errors.push(`seats.aero: ${err}`)
