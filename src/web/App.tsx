@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import type { JSX } from 'react'
 import {
   fetchDealsFiltered,
   fetchHistory,
@@ -26,6 +27,58 @@ import { airportLabel } from '../core/regions.js'
 
 type Tab = 'deals' | 'search' | 'watches' | 'shortlist' | 'history' | 'runs' | 'settings'
 type SortColumn = 'cpp' | 'date' | 'mr_points' | 'seats' | 'cash_cad'
+
+const PlaneIcon = () => (
+  <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+    <path d="M14.6 1.4c.5.5.5 1.4.1 1.9L10.9 8l1.4 5.2-1.2 1.2-2.7-4.6-2.7 2.7.3 1.9-.9.9-1.3-2.5L1.3 11l.9-.9 1.9.3 2.7-2.7L2.9 5l1.2-1.2L9.3 5.2l3.4-3.8c.5-.5 1.4-.5 1.9 0z" />
+  </svg>
+)
+
+const SearchIcon = () => (
+  <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+    <path d="M11.7 10.3a6 6 0 1 0-1.4 1.4l3 3 1.4-1.4-3-3zM6 10a4 4 0 1 1 0-8 4 4 0 0 1 0 8z" />
+  </svg>
+)
+
+const EyeIcon = () => (
+  <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+    <path d="M8 3a7.5 7.5 0 0 1 7 4.7A7.5 7.5 0 0 1 8 12.5 7.5 7.5 0 0 1 1 7.7 7.5 7.5 0 0 1 8 3zm0 2.2a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z" />
+  </svg>
+)
+
+const StarIcon = () => (
+  <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+    <path d="M8 1.5l2 4.1 4.5.6-3.2 3.2.7 4.5L8 11.8l-4 2.1.7-4.5L1.5 6.2l4.5-.6L8 1.5z" />
+  </svg>
+)
+
+const ChartIcon = () => (
+  <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+    <path d="M2 13h12v1.5H2V13zm1.5-4.5L6 11l3-3.5 2 2L14.5 5l-1-1-2.5 3-2-2L6 8.6 4.5 7l-1 1.5z" />
+  </svg>
+)
+
+const ClockIcon = () => (
+  <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+    <path d="M8 1.5A6.5 6.5 0 1 1 1.5 8H3a5 5 0 1 0 5-5V1.5zM7.5 4H9v4.2l3 1.8-.7 1.3L7.5 9V4z" />
+  </svg>
+)
+
+const GearIcon = () => (
+  <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+    <path d="M9.4 1l.4 1.8a5.6 5.6 0 0 1 1.4.8l1.7-.6 1.4 2.4-1.3 1.2a5.7 5.7 0 0 1 0 1.7l1.3 1.2-1.4 2.4-1.7-.6a5.6 5.6 0 0 1-1.4.8L9.4 15H6.6l-.4-1.8a5.6 5.6 0 0 1-1.4-.8l-1.7.6-1.4-2.4L3 9.4a5.7 5.7 0 0 1 0-1.7L1.7 6.4l1.4-2.4 1.7.6a5.6 5.6 0 0 1 1.4-.8L6.6 1h2.8zM8 5.8A2.2 2.2 0 1 0 8 10.2 2.2 2.2 0 0 0 8 5.8z" />
+  </svg>
+)
+
+const TABS: Array<{ id: Tab; label: string; icon: JSX.Element; section?: string }> = [
+  { id: 'deals', label: 'Deals', icon: <PlaneIcon /> },
+  { id: 'search', label: 'Search', icon: <SearchIcon /> },
+  { id: 'watches', label: 'Watches', icon: <EyeIcon /> },
+  { id: 'shortlist', label: 'Shortlist', icon: <StarIcon /> },
+  { id: 'history', label: 'History', icon: <ChartIcon /> },
+  { id: 'runs', label: 'Runs', icon: <ClockIcon />, section: 'System' },
+  { id: 'settings', label: 'Settings', icon: <GearIcon /> },
+]
 
 const alertKeyOf = (d: DealRow) => `${d.route}|${d.date}|${d.cabin}|${d.program}`
 const asError = (error: unknown) => error instanceof Error ? error : new Error(String(error))
@@ -556,25 +609,30 @@ export default function App() {
   if (!status.configured) return <Wizard onDone={() => { void fetchStatus().then(setStatus) }} />
 
   return (
-    <div>
-      <h1>✈️ Flight Checks</h1>
-      {banner && <p className="banner" onClick={() => setBanner(null)}>{banner}</p>}
-      <nav>
-        {(['deals', 'search', 'watches', 'shortlist', 'history', 'runs', 'settings'] as Tab[]).map(currentTab => (
-          <button key={currentTab} className={tab === currentTab ? 'active' : ''} onClick={() => setTab(currentTab)}>
-            {currentTab[0].toUpperCase() + currentTab.slice(1)}
-          </button>
+    <div className="shell">
+      <nav className="sidebar" aria-label="Sections">
+        <div className="app-title">✈️ Flight Checks</div>
+        {TABS.map(t => (
+          <span key={t.id}>
+            {t.section && <div className="side-section">{t.section}</div>}
+            <button className={`side-item${tab === t.id ? ' on' : ''}`} onClick={() => setTab(t.id)}>
+              {t.icon}{t.label}
+            </button>
+          </span>
         ))}
       </nav>
-      {tab === 'deals' && (
-        <DealsTab meta={meta} onPick={onPick} onError={onError} />
-      )}
-      {tab === 'search' && <SearchTab onError={onError} />}
-      {tab === 'watches' && <WatchesTab meta={meta} onError={onError} />}
-      {tab === 'shortlist' && <ShortlistTab onPick={onPick} onError={onError} />}
-      {tab === 'history' && <HistoryTab route={picked.route} cabin={picked.cabin} onError={onError} />}
-      {tab === 'runs' && <RunsTab onError={onError} />}
-      {tab === 'settings' && <SettingsTab onError={onError} />}
+      <main className="content">
+        {banner && <p className="toast toast-err" role="alert" onClick={() => setBanner(null)}>{banner}</p>}
+        {tab === 'deals' && (
+          <DealsTab meta={meta} onPick={onPick} onError={onError} />
+        )}
+        {tab === 'search' && <SearchTab onError={onError} />}
+        {tab === 'watches' && <WatchesTab meta={meta} onError={onError} />}
+        {tab === 'shortlist' && <ShortlistTab onPick={onPick} onError={onError} />}
+        {tab === 'history' && <HistoryTab route={picked.route} cabin={picked.cabin} onError={onError} />}
+        {tab === 'runs' && <RunsTab onError={onError} />}
+        {tab === 'settings' && <SettingsTab onError={onError} />}
+      </main>
     </div>
   )
 }

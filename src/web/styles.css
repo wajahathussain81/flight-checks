@@ -480,12 +480,18 @@ th.sortable {
   display: flex;
   align-items: center;
   gap: 0.6rem;
+  font: inherit;
   font-size: 0.86rem;
   font-weight: 500;
   color: var(--label);
   padding: 0.42rem 0.7rem;
   border-radius: 8px;
   margin-bottom: 1px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
 }
 
 .side-item svg {
@@ -752,3 +758,9 @@ th.sortable {
   color: var(--red);
   border: 1px solid var(--red-tint);
 }
+
+.shell { display: grid; grid-template-columns: 210px 1fr; min-height: 100vh; }
+.sidebar { position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+.content { padding: 1.6rem 2rem 3rem; min-width: 0; }
+.app-title { display: flex; align-items: center; gap: 0.5rem; font-size: 0.95rem; font-weight: 700; letter-spacing: -0.01em; padding: 1rem 0.9rem 0.9rem; }
+@media (max-width: 700px) { .shell { grid-template-columns: 1fr; } .sidebar { position: static; height: auto; display: flex; overflow-x: auto; } }
