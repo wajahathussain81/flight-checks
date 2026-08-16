@@ -24,6 +24,7 @@ import { Wizard } from './Wizard.js'
 import { WatchesTab } from './WatchesTab.js'
 import { SearchTab } from './SearchTab.js'
 import { dealStats } from './dealStats.js'
+import { settingLabel } from './settingLabels.js'
 import { airportLabel } from '../core/regions.js'
 
 type Tab = 'deals' | 'search' | 'watches' | 'shortlist' | 'history' | 'runs' | 'settings'
@@ -622,58 +623,71 @@ function SettingsTab({ onError }: { onError: (error: Error) => void }) {
   return (
     <div>
       {SETTINGS_GROUPS.map(group => (
-        <section className="settings-group" key={group.heading}>
-          <h2>{group.heading}</h2>
-          {group.keys.map(key => {
-            const entry = settings[key]
-            if (!entry) return null
-            const secret = 'secret' in entry
-            const value = inputs[key] ?? settingInputValue(key, entry)
-            return (
-              <div className="settings-row" key={key}>
-                <label htmlFor={`setting-${key}`}>{key}</label>
-                {secret ? (
-                  <input
-                    id={`setting-${key}`}
-                    type="password"
-                    value={value}
-                    placeholder={entry.set ? '••••• (set)' : 'not set'}
-                    onChange={event => setInputs(current => ({ ...current, [key]: event.target.value }))}
-                  />
-                ) : JSON_SETTINGS.has(key) ? (
-                  <textarea
-                    id={`setting-${key}`}
-                    value={value}
-                    onChange={event => setInputs(current => ({ ...current, [key]: event.target.value }))}
-                  />
-                ) : key === 'digestEnabled' ? (
-                  <select
-                    id={`setting-${key}`}
-                    value={value}
-                    onChange={event => setInputs(current => ({ ...current, [key]: event.target.value }))}
-                  >
-                    <option value="true">true</option>
-                    <option value="false">false</option>
-                  </select>
-                ) : (
-                  <input
-                    id={`setting-${key}`}
-                    value={value}
-                    onChange={event => setInputs(current => ({ ...current, [key]: event.target.value }))}
-                  />
-                )}
-                <button disabled={secret && !value} onClick={() => void save(key)}>Save</button>
-                {secret ? (
-                  <button onClick={() => void reset(key)}>Clear</button>
-                ) : entry.overridden && (
-                  <>
-                    <button onClick={() => void reset(key)}>Reset</button>
-                    <span>default: {String(entry.default)}</span>
-                  </>
-                )}
-              </div>
-            )
-          })}
+        <section className="inset-group" key={group.heading}>
+          <div className="inset-group-title">{group.heading}</div>
+          <div className="inset-list">
+            {group.keys.map(key => {
+              const entry = settings[key]
+              if (!entry) return null
+              const secret = 'secret' in entry
+              const value = inputs[key] ?? settingInputValue(key, entry)
+              const { label, hint } = settingLabel(key)
+              return (
+                <div className={JSON_SETTINGS.has(key) ? 'inset-row tall' : 'inset-row'} key={key}>
+                  <span className="grow">
+                    <label htmlFor={`setting-${key}`}>{label}</label>
+                    {hint && <span className="hint">{hint}</span>}
+                    {!secret && entry.overridden && <span className="hint">default: {String(entry.default)}</span>}
+                  </span>
+                  {key === 'digestEnabled' ? (
+                    <button
+                      id="setting-digestEnabled"
+                      className={'toggle' + (value === 'true' ? ' on' : '')}
+                      role="switch"
+                      aria-checked={value === 'true'}
+                      aria-label="Email digest"
+                      onClick={() => {
+                        const next = value === 'true' ? 'false' : 'true'
+                        setInputs(current => ({ ...current, digestEnabled: next }))
+                        void putSettingValue('digestEnabled', next).then(loadSettings).catch(err => onError(asError(err)))
+                      }}
+                    />
+                  ) : JSON_SETTINGS.has(key) ? (
+                    <textarea
+                      className="field"
+                      id={`setting-${key}`}
+                      value={value}
+                      onChange={event => setInputs(current => ({ ...current, [key]: event.target.value }))}
+                    />
+                  ) : secret ? (
+                    <input
+                      className="field"
+                      id={`setting-${key}`}
+                      type="password"
+                      value={value}
+                      placeholder={entry.set ? '••••• (set)' : 'not set'}
+                      onChange={event => setInputs(current => ({ ...current, [key]: event.target.value }))}
+                    />
+                  ) : (
+                    <input
+                      className="inset-field"
+                      id={`setting-${key}`}
+                      value={value}
+                      onChange={event => setInputs(current => ({ ...current, [key]: event.target.value }))}
+                    />
+                  )}
+                  {key !== 'digestEnabled' && (
+                    <button className="btn btn-sm btn-tinted" disabled={secret && !value} onClick={() => void save(key)}>Save</button>
+                  )}
+                  {secret ? (
+                    <button className="btn btn-sm btn-destructive" onClick={() => void reset(key)}>Clear</button>
+                  ) : entry.overridden && (
+                    <button className="btn btn-sm btn-plain" onClick={() => void reset(key)}>Reset</button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
         </section>
       ))}
     </div>

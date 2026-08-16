@@ -791,3 +791,7 @@ details > summary {
 
 .card h3 { font-size: 1.0625rem; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 0.6rem; }
 .card h3:not(:first-child) { margin-top: 1.4rem; }
+
+.inset-group + .inset-group { margin-top: 1.4rem; }
+.inset-row.tall { align-items: flex-start; flex-wrap: wrap; }
+.inset-row.tall textarea { flex-basis: 100%; }
