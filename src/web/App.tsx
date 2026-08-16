@@ -446,9 +446,9 @@ function HistoryTab({ route, cabin, onError }: { route: string; cabin: string; o
   useEffect(() => {
     if (route) fetchHistory(route, cabin).then(setPoints).catch(error => onError(asError(error)))
   }, [route, cabin, onError])
-  if (!route) return <p>Pick a deal on the Deals tab to see its history.</p>
+  if (!route) return <p className="content-sub">Pick a deal on the Deals tab to see its history.</p>
   return (
-    <div>
+    <div className="card">
       <h3>{route} · {cabin} · ¢/pt over time</h3>
       <Sparkline values={points.map(point => point.cpp)} />
       <h3>Cash fare (CAD)</h3>

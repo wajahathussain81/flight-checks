@@ -788,3 +788,6 @@ details > summary {
   cursor: pointer;
   list-style: none;
 }
+
+.card h3 { font-size: 1.0625rem; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 0.6rem; }
+.card h3:not(:first-child) { margin-top: 1.4rem; }
