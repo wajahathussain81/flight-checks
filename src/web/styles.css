@@ -775,3 +775,5 @@ th.sortable {
   background: var(--accent-tint);
   cursor: pointer;
 }
+
+.field-label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--label-2); margin-bottom: 0.3rem; }
