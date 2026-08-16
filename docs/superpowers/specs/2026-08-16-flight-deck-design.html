@@ -1,0 +1,527 @@
+<title>Flight Deck</title>
+<style>
+  :root {
+    --bg: #F5F5F7;
+    --surface: #FFFFFF;
+    --surface-2: #FAFAFC;
+    --inset: #F2F2F7;
+    --label: #1D1D1F;
+    --label-2: #6E6E73;
+    --label-3: #AEAEB2;
+    --separator: rgba(0, 0, 0, 0.10);
+    --separator-faint: rgba(0, 0, 0, 0.06);
+    --accent: #007AFF;
+    --accent-tint: rgba(0, 122, 255, 0.12);
+    --green: #34C759;
+    --green-tint: rgba(52, 199, 89, 0.13);
+    --red: #FF3B30;
+    --red-tint: rgba(255, 59, 48, 0.12);
+    --orange: #FF9500;
+    --orange-tint: rgba(255, 149, 0, 0.14);
+    --shadow-card: 0 1px 2px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.05);
+    --shadow-window: 0 2px 6px rgba(0,0,0,0.08), 0 18px 50px rgba(0,0,0,0.16);
+    --sidebar-bg: rgba(246, 246, 248, 0.9);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161618;
+      --surface: #1E1E20;
+      --surface-2: #232326;
+      --inset: #2A2A2D;
+      --label: #F5F5F7;
+      --label-2: #98989F;
+      --label-3: #636368;
+      --separator: rgba(255, 255, 255, 0.13);
+      --separator-faint: rgba(255, 255, 255, 0.07);
+      --accent: #0A84FF;
+      --accent-tint: rgba(10, 132, 255, 0.18);
+      --green: #30D158;
+      --green-tint: rgba(48, 209, 88, 0.16);
+      --red: #FF453A;
+      --red-tint: rgba(255, 69, 58, 0.16);
+      --orange: #FF9F0A;
+      --orange-tint: rgba(255, 159, 10, 0.17);
+      --shadow-card: 0 1px 2px rgba(0,0,0,0.3), 0 4px 16px rgba(0,0,0,0.3);
+      --shadow-window: 0 2px 6px rgba(0,0,0,0.4), 0 18px 50px rgba(0,0,0,0.55);
+      --sidebar-bg: rgba(40, 40, 43, 0.9);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #161618;
+    --surface: #1E1E20;
+    --surface-2: #232326;
+    --inset: #2A2A2D;
+    --label: #F5F5F7;
+    --label-2: #98989F;
+    --label-3: #636368;
+    --separator: rgba(255, 255, 255, 0.13);
+    --separator-faint: rgba(255, 255, 255, 0.07);
+    --accent: #0A84FF;
+    --accent-tint: rgba(10, 132, 255, 0.18);
+    --green: #30D158;
+    --green-tint: rgba(48, 209, 88, 0.16);
+    --red: #FF453A;
+    --red-tint: rgba(255, 69, 58, 0.16);
+    --orange: #FF9F0A;
+    --orange-tint: rgba(255, 159, 10, 0.17);
+    --shadow-card: 0 1px 2px rgba(0,0,0,0.3), 0 4px 16px rgba(0,0,0,0.3);
+    --shadow-window: 0 2px 6px rgba(0,0,0,0.4), 0 18px 50px rgba(0,0,0,0.55);
+    --sidebar-bg: rgba(40, 40, 43, 0.9);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--label);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    margin: 0;
+    line-height: 1.5;
+  }
+  .page { max-width: 980px; margin: 0 auto; padding: 4rem 2rem 6rem; }
+
+  /* ---------- page typography ---------- */
+  .eyebrow {
+    font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--accent); margin: 0 0 0.75rem;
+  }
+  h1 {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+    font-size: clamp(2.4rem, 6vw, 3.4rem); font-weight: 700; letter-spacing: -0.022em;
+    line-height: 1.06; margin: 0 0 1rem; text-wrap: balance;
+  }
+  .lede { font-size: 1.15rem; color: var(--label-2); max-width: 40rem; margin: 0; letter-spacing: -0.01em; }
+  section { margin-top: 4.5rem; }
+  h2 {
+    font-size: 1.6rem; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 0.4rem;
+  }
+  .section-sub { color: var(--label-2); margin: 0 0 1.5rem; max-width: 42rem; font-size: 0.95rem; }
+  h3 { font-size: 1.05rem; font-weight: 600; letter-spacing: -0.01em; margin: 2rem 0 0.75rem; }
+  code { font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace; font-size: 0.85em; background: var(--inset); padding: 0.1em 0.4em; border-radius: 5px; }
+
+  /* ---------- principles ---------- */
+  .principles { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; margin-top: 1.5rem; }
+  .principle { background: var(--surface); border-radius: 14px; padding: 1.25rem 1.4rem; box-shadow: var(--shadow-card); }
+  .principle strong { display: block; font-size: 0.95rem; letter-spacing: -0.01em; margin-bottom: 0.3rem; }
+  .principle p { margin: 0; font-size: 0.88rem; color: var(--label-2); }
+
+  /* ---------- palette ---------- */
+  .palette-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.9rem; }
+  .swatch { border-radius: 12px; overflow: hidden; box-shadow: var(--shadow-card); background: var(--surface); }
+  .swatch-color { height: 64px; border-bottom: 1px solid var(--separator-faint); }
+  .swatch-meta { padding: 0.6rem 0.8rem; }
+  .swatch-name { font-size: 0.8rem; font-weight: 600; letter-spacing: -0.005em; }
+  .swatch-hex { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.72rem; color: var(--label-2); font-variant-numeric: tabular-nums; }
+  .palette-label { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--label-3); margin: 1.6rem 0 0.7rem; }
+
+  /* ---------- type scale ---------- */
+  .type-table { background: var(--surface); border-radius: 14px; box-shadow: var(--shadow-card); overflow: hidden; }
+  .type-row { display: grid; grid-template-columns: 11rem 1fr; align-items: baseline; gap: 1.5rem; padding: 0.95rem 1.4rem; border-bottom: 1px solid var(--separator-faint); }
+  .type-row:last-child { border-bottom: none; }
+  .type-spec { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.72rem; color: var(--label-2); font-variant-numeric: tabular-nums; }
+  .t-large-title { font-size: 2.125rem; font-weight: 700; letter-spacing: -0.022em; line-height: 1.1; }
+  .t-title2 { font-size: 1.375rem; font-weight: 700; letter-spacing: -0.018em; }
+  .t-headline { font-size: 1.0625rem; font-weight: 600; letter-spacing: -0.01em; }
+  .t-body { font-size: 0.9375rem; font-weight: 400; }
+  .t-footnote { font-size: 0.8125rem; color: var(--label-2); }
+  .t-caption { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--label-3); }
+  .t-num { font-size: 1.0625rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  /* ---------- component specimens ---------- */
+  .specimen { background: var(--surface); border-radius: 14px; box-shadow: var(--shadow-card); padding: 1.5rem; }
+  .spec-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
+  .spec-row + .spec-row { margin-top: 1.1rem; }
+  .spec-note { font-size: 0.8rem; color: var(--label-2); margin: 0.5rem 0 0; }
+
+  /* Buttons — the actual proposed components */
+  .btn {
+    font: inherit; font-size: 0.9rem; font-weight: 590; letter-spacing: -0.005em;
+    border: none; border-radius: 9px; padding: 0.5rem 1.05rem; cursor: pointer;
+    transition: transform 0.12s ease, filter 0.12s ease, background 0.12s ease;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { filter: brightness(1.08); }
+  .btn-tinted { background: var(--accent-tint); color: var(--accent); }
+  .btn-plain { background: var(--inset); color: var(--label); }
+  .btn-destructive { background: var(--red-tint); color: var(--red); }
+  .btn-quiet { background: transparent; color: var(--accent); padding-inline: 0.5rem; }
+  .btn-sm { font-size: 0.8rem; padding: 0.32rem 0.75rem; border-radius: 7px; }
+  .btn[disabled] { opacity: 0.45; cursor: default; }
+  .btn[disabled]:active { transform: none; }
+
+  /* Segmented control */
+  .segmented { display: inline-flex; background: var(--inset); border-radius: 9px; padding: 2px; gap: 2px; }
+  .segmented button {
+    font: inherit; font-size: 0.85rem; font-weight: 500; border: none; background: transparent;
+    color: var(--label-2); padding: 0.35rem 0.9rem; border-radius: 7px; cursor: pointer;
+  }
+  .segmented button.on { background: var(--surface); color: var(--label); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+
+  /* Inputs */
+  .field {
+    font: inherit; font-size: 0.9rem; background: var(--inset); border: 1px solid transparent;
+    border-radius: 9px; padding: 0.5rem 0.85rem; color: var(--label); min-width: 0;
+  }
+  .field::placeholder { color: var(--label-3); }
+  .field:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-tint); }
+  .field-search { padding-left: 2rem; background-repeat: no-repeat; background-position: 0.65rem center; }
+
+  /* Chips / badges */
+  .chip { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.78rem; font-weight: 600; border-radius: 999px; padding: 0.22rem 0.7rem; letter-spacing: 0; }
+  .chip-green { background: var(--green-tint); color: var(--green); }
+  .chip-blue { background: var(--accent-tint); color: var(--accent); }
+  .chip-orange { background: var(--orange-tint); color: var(--orange); }
+  .chip-red { background: var(--red-tint); color: var(--red); }
+  .chip-neutral { background: var(--inset); color: var(--label-2); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+  /* Toggle */
+  .toggle { width: 44px; height: 26px; border-radius: 999px; background: var(--label-3); position: relative; border: none; cursor: pointer; transition: background 0.15s ease; flex-shrink: 0; }
+  .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.25); transition: left 0.15s ease; }
+  .toggle.on { background: var(--green); }
+  .toggle.on::after { left: 20px; }
+
+  /* ---------- window mockups ---------- */
+  .window { border-radius: 14px; overflow: hidden; box-shadow: var(--shadow-window); border: 1px solid var(--separator-faint); background: var(--surface); margin-top: 1.25rem; }
+  .titlebar { display: flex; align-items: center; gap: 0.5rem; padding: 0.7rem 1rem; background: var(--surface-2); border-bottom: 1px solid var(--separator-faint); }
+  .lights { display: flex; gap: 7px; }
+  .lights span { width: 12px; height: 12px; border-radius: 50%; }
+  .lights span:nth-child(1) { background: #FF5F57; }
+  .lights span:nth-child(2) { background: #FEBC2E; }
+  .lights span:nth-child(3) { background: #28C840; }
+  .titlebar-title { flex: 1; text-align: center; font-size: 0.82rem; font-weight: 600; color: var(--label-2); margin-right: 3rem; }
+
+  .app-shell { display: grid; grid-template-columns: 200px 1fr; min-height: 460px; }
+  .sidebar { background: var(--sidebar-bg); border-right: 1px solid var(--separator-faint); padding: 0.9rem 0.6rem; }
+  .side-item { display: flex; align-items: center; gap: 0.6rem; font-size: 0.86rem; font-weight: 500; color: var(--label); padding: 0.42rem 0.7rem; border-radius: 8px; margin-bottom: 1px; }
+  .side-item svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--accent); }
+  .side-item.on { background: var(--accent); color: #fff; font-weight: 600; }
+  .side-item.on svg { color: #fff; }
+  .side-item .count { margin-left: auto; font-size: 0.72rem; font-weight: 600; color: var(--label-3); font-variant-numeric: tabular-nums; }
+  .side-item.on .count { color: rgba(255,255,255,0.75); }
+  .side-section { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--label-3); padding: 0.9rem 0.7rem 0.3rem; }
+
+  .content { padding: 1.4rem 1.6rem; overflow-x: auto; }
+  .content-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
+  .content-header h4 { font-size: 1.55rem; font-weight: 700; letter-spacing: -0.02em; margin: 0; }
+  .content-sub { font-size: 0.8rem; color: var(--label-2); margin: 0.1rem 0 0; }
+  .filter-bar { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+
+  /* Deal list rows */
+  .deal-list { border: 1px solid var(--separator-faint); border-radius: 12px; overflow: hidden; }
+  .deal-head, .deal-row { display: grid; grid-template-columns: 1.5fr 1fr 0.8fr 1fr 0.9fr 0.8fr 0.9fr; gap: 0.75rem; align-items: center; padding: 0.6rem 1rem; min-width: 640px; }
+  .deal-head { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--label-3); background: var(--surface-2); border-bottom: 1px solid var(--separator-faint); }
+  .deal-row { border-bottom: 1px solid var(--separator-faint); font-size: 0.86rem; transition: background 0.1s ease; }
+  .deal-row:last-child { border-bottom: none; }
+  .deal-row:hover { background: var(--accent-tint); cursor: pointer; }
+  .deal-route { font-weight: 600; letter-spacing: -0.005em; }
+  .deal-dest { display: block; font-size: 0.74rem; font-weight: 400; color: var(--label-2); }
+  .deal-num { font-variant-numeric: tabular-nums; }
+  .cpp { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .cpp-great { color: var(--green); }
+  .cpp-ok { color: var(--label); }
+  .deal-actions { display: flex; gap: 0.35rem; justify-content: flex-end; }
+  .icon-btn { width: 26px; height: 26px; border-radius: 7px; border: none; background: var(--inset); color: var(--label-2); cursor: pointer; display: grid; place-items: center; font-size: 0.8rem; }
+  .icon-btn:hover { color: var(--accent); }
+  .icon-btn.saved { background: var(--green-tint); color: var(--green); }
+
+  /* Grouped-inset settings mock */
+  .inset-group { max-width: 560px; }
+  .inset-group-title { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--label-3); padding: 0 1rem 0.4rem; }
+  .inset-list { background: var(--inset); border-radius: 12px; overflow: hidden; }
+  .inset-row { display: flex; align-items: center; gap: 0.9rem; padding: 0.7rem 1rem; border-bottom: 1px solid var(--separator-faint); font-size: 0.88rem; }
+  .inset-row:last-child { border-bottom: none; }
+  .inset-row .grow { flex: 1; }
+  .inset-row .hint { display: block; font-size: 0.74rem; color: var(--label-2); }
+  .inset-value { color: var(--label-2); font-size: 0.85rem; }
+  .inset-field { font: inherit; font-size: 0.85rem; text-align: right; background: transparent; border: none; color: var(--accent); width: 7rem; }
+  .inset-field:focus { outline: none; }
+
+  /* summary stat cards */
+  .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; margin-bottom: 1.1rem; }
+  .stat { background: var(--surface-2); border: 1px solid var(--separator-faint); border-radius: 12px; padding: 0.75rem 0.95rem; }
+  .stat .k { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--label-3); }
+  .stat .v { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.2; }
+  .stat .v small { font-size: 0.75rem; font-weight: 600; color: var(--green); letter-spacing: 0; }
+
+  /* two-up compare */
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media (max-width: 720px) { .compare { grid-template-columns: 1fr; } .type-row { grid-template-columns: 1fr; gap: 0.2rem; } }
+
+  /* motion note list */
+  .notes { display: grid; gap: 0.6rem; padding: 0; margin: 1rem 0 0; list-style: none; }
+  .notes li { background: var(--surface); border-radius: 12px; padding: 0.85rem 1.1rem; box-shadow: var(--shadow-card); font-size: 0.88rem; display: flex; gap: 0.75rem; }
+  .notes li::before { content: "·"; color: var(--accent); font-weight: 700; }
+
+  /* tab-by-tab table */
+  .plan-table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow-card); font-size: 0.88rem; }
+  .plan-table th { text-align: left; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--label-3); padding: 0.75rem 1.1rem; border-bottom: 1px solid var(--separator); background: var(--surface-2); }
+  .plan-table td { padding: 0.7rem 1.1rem; border-bottom: 1px solid var(--separator-faint); vertical-align: top; }
+  .plan-table tr:last-child td { border-bottom: none; }
+  .plan-table td:first-child { font-weight: 600; white-space: nowrap; }
+  .plan-table td:last-child { color: var(--label-2); }
+  .table-scroll { overflow-x: auto; border-radius: 14px; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="page">
+  <header>
+    <p class="eyebrow">Design Direction · Flight Checks</p>
+    <h1>Flight Deck</h1>
+    <p class="lede">A native-feeling redesign in Apple's design language: sidebar navigation like a macOS app, SF&nbsp;Pro system typography, Apple's semantic color system in light and dark, and grouped-inset settings. Quiet surfaces, one blue accent, and the numbers doing the talking.</p>
+  </header>
+
+  <section>
+    <h2>Three rules the whole UI follows</h2>
+    <div class="principles">
+      <div class="principle">
+        <strong>Deference to content</strong>
+        <p>The chrome is grey and quiet. Color appears only where it means something: blue for actions and selection, green for "fits your balance", red for errors. Never decorative.</p>
+      </div>
+      <div class="principle">
+        <strong>Depth through layers, not lines</strong>
+        <p>White cards float on a soft grey ground with faint shadows — the macOS window model. Hairline separators replace table borders. Nothing is boxed twice.</p>
+      </div>
+      <div class="principle">
+        <strong>Clarity of hierarchy</strong>
+        <p>Every screen opens with a large title and a one-line summary. Data uses tabular numerals; the ranking metric (¢/pt) is the visually heaviest thing in each row.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Color</h2>
+    <p class="section-sub">Apple's semantic palette, tokenized as CSS variables. Every color has a light and dark value; components only ever reference the token. The accent is Apple system blue — the single brand color.</p>
+
+    <p class="palette-label">Light</p>
+    <div class="palette-grid">
+      <div class="swatch"><div class="swatch-color" style="background:#F5F5F7"></div><div class="swatch-meta"><div class="swatch-name">Window ground</div><div class="swatch-hex">#F5F5F7</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#FFFFFF"></div><div class="swatch-meta"><div class="swatch-name">Card surface</div><div class="swatch-hex">#FFFFFF</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#1D1D1F"></div><div class="swatch-meta"><div class="swatch-name">Label</div><div class="swatch-hex">#1D1D1F</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#6E6E73"></div><div class="swatch-meta"><div class="swatch-name">Secondary label</div><div class="swatch-hex">#6E6E73</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#007AFF"></div><div class="swatch-meta"><div class="swatch-name">Accent · blue</div><div class="swatch-hex">#007AFF</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#34C759"></div><div class="swatch-meta"><div class="swatch-name">Positive · green</div><div class="swatch-hex">#34C759</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#FF9500"></div><div class="swatch-meta"><div class="swatch-name">Warning · orange</div><div class="swatch-hex">#FF9500</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#FF3B30"></div><div class="swatch-meta"><div class="swatch-name">Critical · red</div><div class="swatch-hex">#FF3B30</div></div></div>
+    </div>
+
+    <p class="palette-label">Dark</p>
+    <div class="palette-grid">
+      <div class="swatch"><div class="swatch-color" style="background:#161618"></div><div class="swatch-meta"><div class="swatch-name">Window ground</div><div class="swatch-hex">#161618</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#1E1E20"></div><div class="swatch-meta"><div class="swatch-name">Card surface</div><div class="swatch-hex">#1E1E20</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#F5F5F7"></div><div class="swatch-meta"><div class="swatch-name">Label</div><div class="swatch-hex">#F5F5F7</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#98989F"></div><div class="swatch-meta"><div class="swatch-name">Secondary label</div><div class="swatch-hex">#98989F</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#0A84FF"></div><div class="swatch-meta"><div class="swatch-name">Accent · blue</div><div class="swatch-hex">#0A84FF</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#30D158"></div><div class="swatch-meta"><div class="swatch-name">Positive · green</div><div class="swatch-hex">#30D158</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#FF9F0A"></div><div class="swatch-meta"><div class="swatch-name">Warning · orange</div><div class="swatch-hex">#FF9F0A</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#FF453A"></div><div class="swatch-meta"><div class="swatch-name">Critical · red</div><div class="swatch-hex">#FF453A</div></div></div>
+    </div>
+    <p class="spec-note" style="margin-top:0.9rem">Tinted fills (12–18% alpha of the semantic color) back chips and secondary buttons — the iOS "tinted button" pattern — so color never arrives at full strength except on the primary action.</p>
+  </section>
+
+  <section>
+    <h2>Typography</h2>
+    <p class="section-sub">SF Pro via the system font stack — the app renders in the real Apple face on your Mac with zero font payload. Negative tracking on titles, tabular numerals on every figure.</p>
+    <div class="type-table">
+      <div class="type-row"><span class="type-spec">Large Title · 34/700 · -0.022em</span><span class="t-large-title">Deals</span></div>
+      <div class="type-row"><span class="type-spec">Title 2 · 22/700 · -0.018em</span><span class="t-title2">Scanning &amp; schedule</span></div>
+      <div class="type-row"><span class="type-spec">Headline · 17/600</span><span class="t-headline">YYC → HND · Business</span></div>
+      <div class="type-row"><span class="type-spec">Body · 15/400</span><span class="t-body">Availability is from the seats.aero cache, not live inventory.</span></div>
+      <div class="type-row"><span class="type-spec">Numeric · 17/600 · tabular</span><span class="t-num">2.41 ¢/pt · 85,000 pts · $2,140</span></div>
+      <div class="type-row"><span class="type-spec">Footnote · 13/400</span><span class="t-footnote">Last full scan finished 07:04 · 5,033 rows · 3,617 finalists</span></div>
+      <div class="type-row"><span class="type-spec">Caption · 12/600 · caps</span><span class="t-caption">Thresholds</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Buttons &amp; controls</h2>
+    <p class="section-sub">Four button levels, one accent. These are the real proposed components — hover and press them.</p>
+    <div class="specimen">
+      <div class="spec-row">
+        <button class="btn btn-primary">Scan now</button>
+        <button class="btn btn-tinted">Scan Japan</button>
+        <button class="btn btn-plain">Reset</button>
+        <button class="btn btn-destructive">Dismiss</button>
+        <button class="btn btn-quiet">History</button>
+        <button class="btn btn-primary" disabled>Scanning…</button>
+      </div>
+      <p class="spec-note">Filled = the one primary action per screen. Tinted = secondary actions. Plain (grey) = neutral. Red tint = destructive. Quiet = inline links. Small size (below) for row-level actions.</p>
+      <div class="spec-row">
+        <button class="btn btn-sm btn-tinted">Save</button>
+        <button class="btn btn-sm btn-plain">Dismiss</button>
+        <button class="btn btn-sm btn-tinted" style="background:var(--green-tint);color:var(--green)">✓ Saved</button>
+      </div>
+
+      <h3>Segmented control — cabin & filter switching</h3>
+      <div class="spec-row">
+        <div class="segmented">
+          <button class="on">All</button><button>Economy</button><button>Business</button><button>First</button>
+        </div>
+      </div>
+
+      <h3>Fields</h3>
+      <div class="spec-row">
+        <input class="field" type="search" placeholder="Search route or city" />
+        <select class="field"><option>All continents</option><option>Asia</option><option>Europe</option></select>
+        <input class="field" style="width:7.5rem" placeholder="Min ¢/pt" />
+      </div>
+      <p class="spec-note">Inputs sit on the inset grey fill with no border at rest; focus draws the blue ring. Selects and inputs share one shape so the filter bar reads as one family.</p>
+
+      <h3>Status chips</h3>
+      <div class="spec-row">
+        <span class="chip chip-green"><span class="dot"></span>Fits balance</span>
+        <span class="chip chip-blue">Direct</span>
+        <span class="chip chip-neutral">Aeroplan</span>
+        <span class="chip chip-orange">Partial scan</span>
+        <span class="chip chip-red">2 errors</span>
+      </div>
+      <p class="spec-note">Chips replace today's full-row green tint and inline "· direct" text. "Fits balance" becomes a scannable badge instead of a background color.</p>
+
+      <h3>Toggle — replaces true/false dropdowns and checkboxes</h3>
+      <div class="spec-row" style="align-items:center">
+        <button class="toggle on" aria-label="Email digest on"></button><span style="font-size:0.9rem">Email digest</span>
+        <button class="toggle" aria-label="Show dismissed off" style="margin-left:1.5rem"></button><span style="font-size:0.9rem">Show dismissed</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>The Deals screen</h2>
+    <p class="section-sub">The app becomes a sidebar app — seven tabs turn into a macOS-style source list with SF-symbol-like glyphs and live counts. The deals table becomes a card list: destination city under the route code, ¢/pt as the hero figure, hover actions, summary stats up top.</p>
+
+    <div class="window">
+      <div class="titlebar">
+        <div class="lights"><span></span><span></span><span></span></div>
+        <div class="titlebar-title">Flight Checks</div>
+      </div>
+      <div class="app-shell">
+        <nav class="sidebar">
+          <div class="side-item on"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M14.6 1.4c.5.5.5 1.4.1 1.9L10.9 8l1.4 5.2-1.2 1.2-2.7-4.6-2.7 2.7.3 1.9-.9.9-1.3-2.5L1.3 11l.9-.9 1.9.3 2.7-2.7L2.9 5l1.2-1.2L9.3 5.2l3.4-3.8c.5-.5 1.4-.5 1.9 0z"/></svg>Deals<span class="count">3,617</span></div>
+          <div class="side-item"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M11.7 10.3a6 6 0 1 0-1.4 1.4l3 3 1.4-1.4-3-3zM6 10a4 4 0 1 1 0-8 4 4 0 0 1 0 8z"/></svg>Search</div>
+          <div class="side-item"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 3a7.5 7.5 0 0 1 7 4.7A7.5 7.5 0 0 1 8 12.5 7.5 7.5 0 0 1 1 7.7 7.5 7.5 0 0 1 8 3zm0 2.2a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"/></svg>Watches<span class="count">4</span></div>
+          <div class="side-item"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5l2 4.1 4.5.6-3.2 3.2.7 4.5L8 11.8l-4 2.1.7-4.5L1.5 6.2l4.5-.6L8 1.5z"/></svg>Shortlist<span class="count">12</span></div>
+          <div class="side-item"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 13h12v1.5H2V13zm1.5-4.5L6 11l3-3.5 2 2L14.5 5l-1-1-2.5 3-2-2L6 8.6 4.5 7l-1 1.5z"/></svg>History</div>
+          <div class="side-section">System</div>
+          <div class="side-item"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5A6.5 6.5 0 1 1 1.5 8H3a5 5 0 1 0 5-5V1.5zM7.5 4H9v4.2l3 1.8-.7 1.3L7.5 9V4z"/></svg>Runs</div>
+          <div class="side-item"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M9.4 1l.4 1.8a5.6 5.6 0 0 1 1.4.8l1.7-.6 1.4 2.4-1.3 1.2a5.7 5.7 0 0 1 0 1.7l1.3 1.2-1.4 2.4-1.7-.6a5.6 5.6 0 0 1-1.4.8L9.4 15H6.6l-.4-1.8a5.6 5.6 0 0 1-1.4-.8l-1.7.6-1.4-2.4L3 9.4a5.7 5.7 0 0 1 0-1.7L1.7 6.4l1.4-2.4 1.7.6a5.6 5.6 0 0 1 1.4-.8L6.6 1h2.8zM8 5.8A2.2 2.2 0 1 0 8 10.2 2.2 2.2 0 0 0 8 5.8z"/></svg>Settings</div>
+        </nav>
+        <div class="content">
+          <div class="content-header">
+            <div>
+              <h4>Deals</h4>
+              <p class="content-sub">Full scan · today 07:04 · 3,617 finalists from 5,033 rows</p>
+            </div>
+            <button class="btn btn-primary">Scan now</button>
+          </div>
+          <div class="stat-row">
+            <div class="stat"><div class="k">Best value</div><div class="v">3.12 <small>¢/pt</small></div></div>
+            <div class="stat"><div class="k">Fit your 220k</div><div class="v">1,204</div></div>
+            <div class="stat"><div class="k">Business seats</div><div class="v">318</div></div>
+            <div class="stat"><div class="k">Countries</div><div class="v">64</div></div>
+          </div>
+          <div class="filter-bar">
+            <select class="field"><option>All continents</option></select>
+            <select class="field"><option>Japan</option></select>
+            <div class="segmented"><button class="on">All</button><button>Economy</button><button>Business</button></div>
+            <input class="field" type="search" placeholder="Search" style="flex:1;min-width:8rem" />
+            <button class="btn btn-tinted">Scan Japan</button>
+          </div>
+          <div class="deal-list">
+            <div class="deal-head"><span>Route</span><span>Date</span><span>Cabin</span><span>Points</span><span>Cash comp</span><span>¢/pt</span><span></span></div>
+            <div class="deal-row">
+              <span class="deal-route">YYC → HND<span class="deal-dest">Tokyo Haneda</span></span>
+              <span class="deal-num">Nov 14</span>
+              <span><span class="chip chip-neutral">Business</span></span>
+              <span class="deal-num">85,000 <span class="chip chip-green" style="margin-left:0.3rem"><span class="dot"></span>fits</span></span>
+              <span class="deal-num">$4,120</span>
+              <span class="cpp cpp-great">3.12</span>
+              <span class="deal-actions"><button class="icon-btn saved" aria-label="Saved">★</button><button class="icon-btn" aria-label="Dismiss">✕</button></span>
+            </div>
+            <div class="deal-row">
+              <span class="deal-route">YEG → CDG<span class="deal-dest">Paris Charles de Gaulle</span></span>
+              <span class="deal-num">Oct 03</span>
+              <span><span class="chip chip-neutral">Economy</span></span>
+              <span class="deal-num">35,000 <span class="chip chip-green" style="margin-left:0.3rem"><span class="dot"></span>fits</span></span>
+              <span class="deal-num">$1,410</span>
+              <span class="cpp cpp-great">2.87</span>
+              <span class="deal-actions"><button class="icon-btn" aria-label="Save">☆</button><button class="icon-btn" aria-label="Dismiss">✕</button></span>
+            </div>
+            <div class="deal-row">
+              <span class="deal-route">YYC → BKK<span class="deal-dest">Bangkok Suvarnabhumi</span></span>
+              <span class="deal-num">Sep 22</span>
+              <span><span class="chip chip-neutral">Business</span></span>
+              <span class="deal-num">240,000</span>
+              <span class="deal-num">$5,930</span>
+              <span class="cpp cpp-ok">2.05</span>
+              <span class="deal-actions"><button class="icon-btn" aria-label="Save">☆</button><button class="icon-btn" aria-label="Dismiss">✕</button></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Settings — grouped inset lists</h2>
+    <p class="section-sub">The settings form becomes the macOS System Settings pattern: captioned groups of inset rows, human labels instead of raw keys (<code>thresholds.economy</code> → "Economy alert threshold"), values editable in place, toggles for booleans.</p>
+    <div class="window" style="max-width:640px">
+      <div class="titlebar">
+        <div class="lights"><span></span><span></span><span></span></div>
+        <div class="titlebar-title">Settings</div>
+      </div>
+      <div class="content" style="background:var(--surface)">
+        <div class="inset-group">
+          <div class="inset-group-title">Points</div>
+          <div class="inset-list">
+            <div class="inset-row"><span class="grow">Program<span class="hint">Amex Membership Rewards Canada</span></span><span class="inset-value">MR Canada</span></div>
+            <div class="inset-row"><span class="grow">Balance</span><input class="inset-field" value="220,000" /></div>
+            <div class="inset-row"><span class="grow">Economy alert threshold<span class="hint">Minimum ¢/pt before a deal alerts</span></span><input class="inset-field" value="1.8" /></div>
+          </div>
+        </div>
+        <div class="inset-group" style="margin-top:1.4rem">
+          <div class="inset-group-title">Email</div>
+          <div class="inset-list">
+            <div class="inset-row"><span class="grow">Daily digest</span><button class="toggle on" aria-label="Digest on"></button></div>
+            <div class="inset-row"><span class="grow">SMTP password<span class="hint">Stored in settings · write-only</span></span><span class="inset-value">••••••  <button class="btn btn-sm btn-plain">Change</button></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Screen-by-screen</h2>
+    <div class="table-scroll">
+      <table class="plan-table">
+        <tr><th>Screen</th><th>Treatment</th></tr>
+        <tr><td>Deals</td><td>Sidebar + large title, summary stat cards, unified filter bar, card-list table with hover actions and value-colored ¢/pt.</td></tr>
+        <tr><td>Search</td><td>Prominent search card up top (origin, destination, dates), results reuse the deal list. Footnote clarifies results are cached, not live.</td></tr>
+        <tr><td>Watches</td><td>Each watch is a card with its criteria as chips and its top matches inline; add-watch is a sheet-style form.</td></tr>
+        <tr><td>Shortlist</td><td>Saved deals as cards with the note field inline and a "no longer available" state in orange.</td></tr>
+        <tr><td>History</td><td>Sparkline grows into a proper area chart with faint grid, emphasized endpoint, and hover value.</td></tr>
+        <tr><td>Runs</td><td>Status chips (running / done / errors), truncation warnings surfaced as orange chips, monospace error detail on expand.</td></tr>
+        <tr><td>Settings</td><td>Grouped-inset lists with human-readable labels, toggles, inline editing, and "overridden by environment" shown as a footnote per row.</td></tr>
+        <tr><td>Wizard</td><td>Centered onboarding card with step dots, one field group per step, primary button advancing — the "Hello" screen of a Mac app.</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Motion &amp; detail</h2>
+    <ul class="notes">
+      <li>Press states scale buttons to 97% — the iOS spring feel; hover tints rows with the 12% accent wash.</li>
+      <li>Tab switches cross-fade content in 150 ms; no slides, no bounces. Reduced-motion turns it all off.</li>
+      <li>Scanning state: the primary button shows an inline spinner and the Runs row pulses its blue "running" chip.</li>
+      <li>Error banner becomes a floating rounded toast at top center — red tint, dismiss on click — instead of a full-width red bar.</li>
+      <li>Everything keyboard-focusable draws the 2px blue focus ring.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Next steps</h2>
+    <p class="section-sub" style="margin-bottom:0">On your approval: this direction gets written into <code>design.md</code> at the repo root (tokens, type scale, every component spec), then a phased implementation plan, then the build — CSS-only tokens and restyled components first, structural changes (sidebar, grouped settings, stat cards) second, so the app stays shippable at every step.</p>
+  </section>
+</div>

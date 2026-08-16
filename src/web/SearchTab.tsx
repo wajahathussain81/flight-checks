@@ -4,6 +4,7 @@ import { airportLabel } from '../core/regions.js'
 import { explanationMessage, type SearchExplanation } from './searchMessage.js'
 
 const CABINS = ['economy', 'premium', 'business', 'first']
+const GREAT_CPP = 2.5
 const asError = (error: unknown) => error instanceof Error ? error : new Error(String(error))
 
 const emptyForm = { origin: 'YYC', destination: '', dateFrom: '', dateTo: '', cabins: [] as string[] }
@@ -57,70 +58,97 @@ export function SearchTab({ onError }: { onError: (error: Error) => void }) {
   }
 
   return (
-    <div className="overflow">
-      <section className="settings-group">
+    <div>
+      <section className="card" style={{ maxWidth: 560 }}>
         <h2>Search a route</h2>
-        <div className="settings-row">
-          <label htmlFor="search-origin">Origin</label>
-          <input id="search-origin" value={form.origin}
-            onChange={event => setForm(current => ({ ...current, origin: event.target.value.toUpperCase() }))} />
-        </div>
-        <div className="settings-row">
-          <label htmlFor="search-destination">Destination</label>
-          <input id="search-destination" value={form.destination}
-            onChange={event => setForm(current => ({ ...current, destination: event.target.value.toUpperCase() }))} />
-        </div>
-        <div className="settings-row">
-          <label htmlFor="search-from">Travel window</label>
-          <input id="search-from" type="date" value={form.dateFrom}
-            onChange={event => setForm(current => ({ ...current, dateFrom: event.target.value }))} />
-          <input type="date" value={form.dateTo}
-            onChange={event => setForm(current => ({ ...current, dateTo: event.target.value }))} />
-        </div>
-        <div className="settings-row">
-          <label>Cabins (empty = all)</label>
-          <span>
+        <div style={{ display: 'grid', gap: '1rem' }}>
+          <div>
+            <label className="field-label" htmlFor="search-origin">Origin</label>
+            <input className="field" id="search-origin" value={form.origin} style={{ width: '100%' }}
+              onChange={event => setForm(current => ({ ...current, origin: event.target.value.toUpperCase() }))} />
+          </div>
+          <div>
+            <label className="field-label" htmlFor="search-destination">Destination</label>
+            <input className="field" id="search-destination" value={form.destination} style={{ width: '100%' }}
+              onChange={event => setForm(current => ({ ...current, destination: event.target.value.toUpperCase() }))} />
+          </div>
+          <div>
+            <label className="field-label" htmlFor="search-from">Travel window</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <input className="field" id="search-from" aria-label="Travel window start" type="date" value={form.dateFrom}
+                onChange={event => setForm(current => ({ ...current, dateFrom: event.target.value }))} />
+              <input className="field" aria-label="Travel window end" type="date" value={form.dateTo}
+                onChange={event => setForm(current => ({ ...current, dateTo: event.target.value }))} />
+            </div>
+          </div>
+          <div>
+            <span className="field-label" id="search-cabins">Cabins (empty = all)</span>
+            <div role="group" aria-labelledby="search-cabins" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
             {CABINS.map(cabin => (
-              <label key={cabin} style={{ marginRight: '1em' }}>
-                <input type="checkbox" checked={form.cabins.includes(cabin)}
-                  onChange={() => setForm(current => ({ ...current, cabins: toggleItem(current.cabins, cabin) }))} />
-                {' '}{cabin}
-              </label>
+              <button
+                key={cabin}
+                type="button"
+                className={form.cabins.includes(cabin) ? 'chip chip-blue' : 'chip chip-neutral'}
+                aria-pressed={form.cabins.includes(cabin)}
+                onClick={() => setForm(current => ({ ...current, cabins: toggleItem(current.cabins, cabin) }))}
+              >
+                {cabin}
+              </button>
             ))}
-          </span>
+            </div>
+          </div>
+          <div>
+            <button className="btn btn-primary" disabled={loading || !form.destination || !form.dateFrom || !form.dateTo} onClick={() => void submit()}>
+              {loading ? 'Searching…' : 'Search'}
+            </button>
+          </div>
         </div>
-        <button disabled={loading || !form.destination || !form.dateFrom || !form.dateTo} onClick={() => void submit()}>
-          {loading ? 'Searching…' : 'Search'}
-        </button>
       </section>
 
-      <p>Results come from seats.aero&apos;s cached data, not a live search.</p>
+      <p className="content-sub">Results come from seats.aero&apos;s cached data, not a live search.</p>
 
-      {error && <p className="wizard-err">{error}</p>}
+      {error && <p className="chip chip-red">{error}</p>}
 
       {!error && result && result.deals.length > 0 && (
-        <table>
-          <thead>
-            <tr>
-              <th>Route</th><th>Destination</th><th>Date</th><th>Cabin</th><th>Program</th>
-              <th>MR points</th><th>Taxes</th><th>¢/pt</th><th>Seats</th>
-            </tr>
-          </thead>
-          <tbody>
-            {result.deals.map(deal => {
-              const cpp = deal.cabin === 'economy' ? deal.cppRaw : deal.cppConservative
-              return (
-                <tr key={`${deal.route}|${deal.date}|${deal.cabin}|${deal.program}`}>
-                  <td>{deal.route}</td><td>{airportLabel(deal.route.split('-')[1])}</td><td>{deal.date}</td>
-                  <td>{deal.cabin}</td><td>{deal.program}</td><td>{deal.mrPoints.toLocaleString()}</td>
-                  <td>${deal.taxesCad.toFixed(0)}</td>
-                  <td className="value">{cpp.toFixed(2)}</td>
-                  <td>{deal.seats}{deal.direct ? ' · direct' : ''}</td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+        <div className="deal-list overflow">
+          <table className="deal-list-table">
+            <thead>
+              <tr>
+                <th>Route</th><th>Date</th><th>Cabin</th><th>Program</th>
+                <th>MR points</th><th>Taxes</th><th>¢/pt</th><th>Seats</th>
+              </tr>
+            </thead>
+            <tbody>
+              {result.deals.map(deal => {
+                const cpp = deal.cabin === 'economy' ? deal.cppRaw : deal.cppConservative
+                return (
+                  <tr key={`${deal.route}|${deal.date}|${deal.cabin}|${deal.program}`}>
+                    <td>
+                      <span className="deal-route">
+                        {deal.route}
+                        <span className="deal-dest">{airportLabel(deal.route.split('-')[1])}</span>
+                      </span>
+                    </td>
+                    <td className="deal-num">{deal.date}</td>
+                    <td><span className="chip chip-neutral">{deal.cabin}</span></td>
+                    <td>{deal.program}</td>
+                    <td className="deal-num">{deal.mrPoints.toLocaleString()}</td>
+                    <td className="deal-num">${deal.taxesCad.toFixed(0)}</td>
+                    <td>
+                      <span className={'cpp' + (cpp >= GREAT_CPP ? ' cpp-great' : '')}>
+                        {cpp.toFixed(2)}
+                      </span>
+                    </td>
+                    <td className="deal-num">
+                      {deal.seats}{' '}
+                      {deal.direct && <span className="chip chip-blue">direct</span>}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {!error && result && result.deals.length === 0 && result.explanation && (

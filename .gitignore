@@ -6,3 +6,4 @@ env.local
 CLAUDE.local.md
 *.log
 .DS_Store
+reference/
