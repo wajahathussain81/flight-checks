@@ -50,54 +50,54 @@ export function Wizard({ onDone }: { onDone: () => void }) {
 
   return (
     <div className="wizard">
-      <h1>✈️ flight-checks</h1>
+      <h1>✈️ Flight Checks</h1>
       <p className="wizard-sub">Award-flight deal watcher. Three steps and you're scanning.</p>
       <div className="wizard-steps">{[1, 2, 3].map(n => <span key={n} className={n === step ? 'active' : n < step ? 'done' : ''}>{n}</span>)}</div>
 
       {step === 1 && <section>
         <h2>Connect seats.aero</h2>
-        <label>Partner API key <input type="password" value={key} onChange={e => setKey(e.target.value)} placeholder="pro_..." /></label>
-        <label>Home airport <input value={origin} onChange={e => setOrigin(e.target.value)} maxLength={3} placeholder="YYC" /></label>
+        <label>Partner API key <input className="field" type="password" value={key} onChange={e => setKey(e.target.value)} placeholder="pro_..." /></label>
+        <label>Home airport <input className="field" value={origin} onChange={e => setOrigin(e.target.value)} maxLength={3} placeholder="YYC" /></label>
         <div className="wizard-actions">
-          <button disabled={!key || busy} onClick={testKey}>Test connection</button>
-          <button disabled={!key || !/^[A-Za-z]{3}$/.test(origin)} onClick={() => { setMsg(null); setStep(2) }}>Next ▶</button>
+          <button className="btn btn-tinted" disabled={!key || busy} onClick={testKey}>Test connection</button>
+          <button className="btn btn-primary" disabled={!key || !/^[A-Za-z]{3}$/.test(origin)} onClick={() => { setMsg(null); setStep(2) }}>Next</button>
         </div>
       </section>}
 
       {step === 2 && <section>
         <h2>Your points</h2>
-        <label>Program name <input value={program} onChange={e => setProgram(e.target.value)} /></label>
-        <label>Balance <input type="number" value={balance} onChange={e => setBalance(e.target.value)} /></label>
-        <label>Currency label <input value={currency} onChange={e => setCurrency(e.target.value)} maxLength={3} /></label>
+        <label>Program name <input className="field" value={program} onChange={e => setProgram(e.target.value)} /></label>
+        <label>Balance <input className="field" type="number" value={balance} onChange={e => setBalance(e.target.value)} /></label>
+        <label>Currency label <input className="field" value={currency} onChange={e => setCurrency(e.target.value)} maxLength={3} /></label>
         <h3>Transfer ratios <small>(seats.aero source → points per program mile)</small></h3>
         {ratios.map(([k, v], i) => (
           <div key={i} className="ratio-row">
-            <input value={k} onChange={e => setRatios(r => r.map((x, j) => j === i ? [e.target.value, x[1]] : x))} />
-            <input type="number" step="0.05" value={v} onChange={e => setRatios(r => r.map((x, j) => j === i ? [x[0], e.target.value] : x))} />
-            <button onClick={() => setRatios(r => r.filter((_, j) => j !== i))}>✕</button>
+            <input className="field" value={k} onChange={e => setRatios(r => r.map((x, j) => j === i ? [e.target.value, x[1]] : x))} />
+            <input className="field" type="number" step="0.05" value={v} onChange={e => setRatios(r => r.map((x, j) => j === i ? [x[0], e.target.value] : x))} />
+            <button className="icon-btn" aria-label="Remove program" onClick={() => setRatios(r => r.filter((_, j) => j !== i))}>✕</button>
           </div>
         ))}
-        <button onClick={() => setRatios(r => [...r, ['', '1']])}>+ add program</button>
+        <button className="btn btn-sm btn-tinted" onClick={() => setRatios(r => [...r, ['', '1']])}>Add program</button>
         <div className="wizard-actions">
-          <button onClick={() => setStep(1)}>◀ Back</button>
-          <button disabled={ratios.filter(([k]) => k.trim()).length === 0} onClick={() => { setMsg(null); setStep(3) }}>Next ▶</button>
+          <button className="btn btn-plain" onClick={() => setStep(1)}>Back</button>
+          <button className="btn btn-primary" disabled={ratios.filter(([k]) => k.trim()).length === 0} onClick={() => { setMsg(null); setStep(3) }}>Next</button>
         </div>
       </section>}
 
       {step === 3 && <section>
         <h2>Email digest <small>(optional)</small></h2>
-        <label className="check"><input type="checkbox" checked={wantEmail} onChange={e => setWantEmail(e.target.checked)} /> Email me a digest after each scheduled scan</label>
+        <label className="check"><input className="field" type="checkbox" checked={wantEmail} onChange={e => setWantEmail(e.target.checked)} /> Email me a digest after each scheduled scan</label>
         {wantEmail && <>
-          <label>SMTP host <input value={smtp.host} onChange={e => setSmtp(s => ({ ...s, host: e.target.value }))} /></label>
-          <label>Port <input type="number" value={smtp.port} onChange={e => setSmtp(s => ({ ...s, port: e.target.value }))} /></label>
-          <label>User <input value={smtp.user} onChange={e => setSmtp(s => ({ ...s, user: e.target.value }))} /></label>
-          <label>Password <input type="password" value={smtp.password} onChange={e => setSmtp(s => ({ ...s, password: e.target.value }))} /></label>
-          <label>Send digest to <input value={digestTo} onChange={e => setDigestTo(e.target.value)} /></label>
-          <button disabled={busy || !smtp.user || !smtp.password || !digestTo} onClick={testMail}>Send test email</button>
+          <label>SMTP host <input className="field" value={smtp.host} onChange={e => setSmtp(s => ({ ...s, host: e.target.value }))} /></label>
+          <label>Port <input className="field" type="number" value={smtp.port} onChange={e => setSmtp(s => ({ ...s, port: e.target.value }))} /></label>
+          <label>User <input className="field" value={smtp.user} onChange={e => setSmtp(s => ({ ...s, user: e.target.value }))} /></label>
+          <label>Password <input className="field" type="password" value={smtp.password} onChange={e => setSmtp(s => ({ ...s, password: e.target.value }))} /></label>
+          <label>Send digest to <input className="field" value={digestTo} onChange={e => setDigestTo(e.target.value)} /></label>
+          <button className="btn btn-tinted" disabled={busy || !smtp.user || !smtp.password || !digestTo} onClick={testMail}>Send test email</button>
         </>}
         <div className="wizard-actions">
-          <button onClick={() => setStep(2)}>◀ Back</button>
-          <button disabled={busy} onClick={finish}>Finish ✔</button>
+          <button className="btn btn-plain" onClick={() => setStep(2)}>Back</button>
+          <button className="btn btn-primary" disabled={busy} onClick={finish}>Finish</button>
         </div>
       </section>}
 

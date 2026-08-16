@@ -194,11 +194,10 @@ button:disabled:active { transform: none; }
 
 .wizard {
   max-width: 560px;
-  margin: 3rem auto;
-  padding: 2rem;
-  border: 1px solid var(--separator-faint);
-  border-radius: 14px;
+  margin: 4rem auto;
+  padding: 2.5rem;
   background: var(--surface);
+  border-radius: 14px;
   box-shadow: var(--shadow-window);
 }
 
@@ -230,25 +229,23 @@ button:disabled:active { transform: none; }
 }
 
 .wizard-steps span {
-  display: grid;
   width: 2rem;
   height: 2rem;
-  place-items: center;
-  border: 1px solid var(--separator);
   border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.85rem;
+  font-weight: 600;
   background: var(--inset);
   color: var(--label-2);
-  font-variant-numeric: tabular-nums;
 }
 
 .wizard-steps span.active {
-  border-color: var(--accent);
   background: var(--accent);
   color: var(--on-accent);
 }
 
 .wizard-steps span.done {
-  border-color: var(--green);
   background: var(--green);
   color: var(--on-accent);
 }
