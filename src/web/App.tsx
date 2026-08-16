@@ -404,8 +404,8 @@ function ShortlistTab({
   }
 
   return (
-    <div className="overflow">
-      <table>
+    <div className="deal-list overflow">
+      <table className="deal-list-table">
         <thead>
           <tr><th>Route</th><th>Date</th><th>Cabin</th><th>Program</th><th>Current ¢/pt</th><th>Seats</th><th>Note</th><th>Actions</th></tr>
         </thead>
@@ -418,17 +418,18 @@ function ShortlistTab({
                 <td>{route}</td><td>{date}</td><td>{cabin}</td><td>{program}</td>
                 {deal.current
                   ? <><td>{currentCpp?.toFixed(2)}</td><td>{deal.current.seats}</td></>
-                  : <td colSpan={2}>no longer available</td>}
+                  : <td colSpan={2}><span className="chip chip-orange">no longer available</span></td>}
                 <td>
                   <input
+                    className="field"
                     value={notes[deal.alertKey] ?? ''}
                     onChange={event => setNotes(current => ({ ...current, [deal.alertKey]: event.target.value }))}
                     onBlur={() => void saveNote(deal.alertKey)}
                   />
                 </td>
                 <td>
-                  <button className="small" onClick={() => void unsave(deal.alertKey)}>Unsave</button>{' · '}
-                  <a href="#history" onClick={event => { event.preventDefault(); onPick(route, cabin) }}>History</a>
+                  <button className="btn btn-sm btn-plain" onClick={() => void unsave(deal.alertKey)}>Unsave</button>{' '}
+                  <button className="btn btn-sm btn-quiet" onClick={() => onPick(route, cabin)}>History</button>
                 </td>
               </tr>
             )
@@ -504,20 +505,43 @@ function RunsTab({ onError }: { onError: (error: Error) => void }) {
   }
 
   return (
-    <div className="overflow">
-      <button disabled={scanning} onClick={() => void scanNow()}>{scanning ? 'Scanning…' : 'Scan now'}</button>
-      <table>
-        <thead><tr><th>#</th><th>Scope</th><th>Started</th><th>Finished</th><th>Rows</th><th>Finalists</th><th>Errors</th></tr></thead>
-        <tbody>
-          {scans.map(scan => (
-            <tr key={scan.id}>
-              <td>{scan.id}</td><td>{scan.scope}</td><td>{scan.started_at}</td><td>{scan.finished_at ?? 'running'}</td>
-              <td>{scan.rows_pulled}</td><td>{scan.finalists}</td>
-              <td>{scan.errors ? <pre className="err">{scan.errors}</pre> : '—'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div>
+      <div className="content-header">
+        <h4>Runs</h4>
+        <button className="btn btn-primary" disabled={scanning} onClick={() => void scanNow()}>
+          {scanning ? 'Scanning…' : 'Scan now'}
+        </button>
+      </div>
+      <div className="deal-list overflow">
+        <table className="deal-list-table">
+          <thead><tr><th>#</th><th>Scope</th><th>Status</th><th>Started</th><th>Finished</th><th>Rows</th><th>Finalists</th><th>Errors</th></tr></thead>
+          <tbody>
+            {scans.map(scan => {
+              const errorCount = scan.errors?.split(/\r?\n/).filter(line => line.trim().length > 0).length ?? 0
+              return (
+                <tr key={scan.id}>
+                  <td>{scan.id}</td><td>{scan.scope}</td>
+                  <td>
+                    {scan.finished_at === null
+                      ? <span className="chip chip-blue"><span className="dot" />running</span>
+                      : <span className="chip chip-green"><span className="dot" />done</span>}
+                  </td>
+                  <td>{scan.started_at}</td><td>{scan.finished_at ?? 'running'}</td>
+                  <td>{scan.rows_pulled}</td><td>{scan.finalists}</td>
+                  <td>
+                    {errorCount === 0 ? '—' : (
+                      <details>
+                        <summary><span className="chip chip-red">{errorCount} error{errorCount === 1 ? '' : 's'}</span></summary>
+                        <pre className="err">{scan.errors}</pre>
+                      </details>
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

@@ -777,3 +777,14 @@ th.sortable {
 }
 
 .field-label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--label-2); margin-bottom: 0.3rem; }
+
+@keyframes pulse {
+  50% { opacity: 0.45; }
+}
+
+.chip-blue .dot { animation: pulse 1.5s ease-in-out infinite; }
+
+details > summary {
+  cursor: pointer;
+  list-style: none;
+}
