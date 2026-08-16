@@ -23,6 +23,7 @@ import { Sparkline } from './Sparkline.js'
 import { Wizard } from './Wizard.js'
 import { WatchesTab } from './WatchesTab.js'
 import { SearchTab } from './SearchTab.js'
+import { dealStats } from './dealStats.js'
 import { airportLabel } from '../core/regions.js'
 
 type Tab = 'deals' | 'search' | 'watches' | 'shortlist' | 'history' | 'runs' | 'settings'
@@ -92,6 +93,7 @@ function DealsTab({
   onPick: (route: string, cabin: string) => void
   onError: (error: Error) => void
 }) {
+  const GREAT_CPP = 2.5
   const [filters, setFilters] = useState({
     cabin: '',
     continent: '',
@@ -188,10 +190,42 @@ function DealsTab({
     }
   }
 
+  const stats = dealStats(deals, meta.pointsBalance)
+
   return (
-    <div className="overflow">
-      <div className="filters">
+    <div>
+      <div className="content-header">
+        <div>
+          <h4>Deals</h4>
+          <p className="content-sub">{deals.length.toLocaleString()} deals</p>
+        </div>
+        {filters.country && (
+          <button className="btn btn-primary" disabled={scanning} onClick={() => void scanCountry()}>
+            {scanning ? 'Scanning…' : `Scan ${filters.country}`}
+          </button>
+        )}
+      </div>
+      <div className="stat-row">
+        <div className="stat">
+          <div className="k">Best value</div>
+          <div className="v">{stats.bestCpp?.toFixed(2) ?? '—'} <small>¢/pt</small></div>
+        </div>
+        <div className="stat">
+          <div className="k">Fit your {Math.round(meta.pointsBalance / 1000)}k</div>
+          <div className="v">{stats.fitCount.toLocaleString()}</div>
+        </div>
+        <div className="stat">
+          <div className="k">Business seats</div>
+          <div className="v">{stats.businessSeats.toLocaleString()}</div>
+        </div>
+        <div className="stat">
+          <div className="k">Destinations</div>
+          <div className="v">{stats.countries.toLocaleString()}</div>
+        </div>
+      </div>
+      <div className="filter-bar">
         <select
+          className="field"
           value={filters.continent}
           onChange={event => {
             const continent = event.target.value
@@ -205,88 +239,126 @@ function DealsTab({
           <option value="">All continents</option>
           {meta.continents.map(continent => <option key={continent} value={continent}>{continent}</option>)}
         </select>
-        <select value={filters.country} onChange={event => setFilters(current => ({ ...current, country: event.target.value }))}>
+        <select className="field" value={filters.country} onChange={event => setFilters(current => ({ ...current, country: event.target.value }))}>
           <option value="">All countries</option>
           {countries.map(country => <option key={country} value={country}>{country}</option>)}
         </select>
-        <select value={filters.month} onChange={event => setFilters(current => ({ ...current, month: event.target.value }))}>
+        <select className="field" value={filters.month} onChange={event => setFilters(current => ({ ...current, month: event.target.value }))}>
           <option value="">All months</option>
           {months.map(month => <option key={month} value={month}>{month}</option>)}
         </select>
-        <select value={filters.cabin} onChange={event => setFilters(current => ({ ...current, cabin: event.target.value }))}>
-          <option value="">All cabins</option>
-          <option value="economy">Economy</option>
-          <option value="premium">Premium economy</option>
-          <option value="business">Business</option>
-          <option value="first">First</option>
-        </select>
+        <div className="segmented" role="tablist" aria-label="Cabin">
+          {([
+            ['', 'All'],
+            ['economy', 'Economy'],
+            ['premium', 'Premium'],
+            ['business', 'Business'],
+            ['first', 'First'],
+          ] as const).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              role="tab"
+              aria-selected={filters.cabin === value}
+              className={filters.cabin === value ? 'on' : ''}
+              onClick={() => setFilters(current => ({ ...current, cabin: value }))}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <input
+          className="field"
           type="number"
           placeholder="Min ¢/pt"
           value={filters.minCpp}
           onChange={event => setFilters(current => ({ ...current, minCpp: event.target.value }))}
         />
         <input
+          className="field"
           type="search"
           placeholder="Search"
           value={filters.q}
           onChange={event => setFilters(current => ({ ...current, q: event.target.value }))}
         />
-        <label>
+        <label className="chip chip-neutral">
           <input
+            className="field"
             type="checkbox"
             checked={filters.includeDismissed}
             onChange={event => setFilters(current => ({ ...current, includeDismissed: event.target.checked }))}
-          />{' '}
-          show dismissed
+          />
+          Show dismissed
         </label>
-        {filters.country && (
-          <button className="small" disabled={scanning} onClick={() => void scanCountry()}>
-            {scanning ? 'Scanning…' : `Scan ${filters.country}`}
-          </button>
-        )}
       </div>
-      <table>
-        <thead>
-          <tr>
-            <th>Route</th><th>Destination</th>{sortLabel('Date', 'date')}<th>Cabin</th><th>Program</th>
-            {sortLabel('MR points', 'mr_points')}<th>Taxes</th>{sortLabel('Cash comp', 'cash_cad')}
-            {sortLabel('¢/pt', 'cpp')}{sortLabel('Seats', 'seats')}<th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {deals.map(deal => {
-            const cpp = deal.cabin === 'economy' ? deal.cpp_raw : deal.cpp_conservative
-            const rowClasses = [deal.mr_points <= meta.pointsBalance ? 'fits' : '', deal.status === 'dismissed' ? 'dimmed' : '']
-              .filter(Boolean).join(' ')
-            return (
-              <tr
-                key={deal.id}
-                className={rowClasses}
-                onClick={() => onPick(deal.route, deal.cabin)}
-                style={{ cursor: 'pointer' }}
-              >
-                <td>{deal.route}</td><td>{airportLabel(deal.route.split('-')[1])}</td><td>{deal.date}</td>
-                <td>{deal.cabin}</td><td>{deal.program}</td><td>{deal.mr_points.toLocaleString()}</td>
-                <td>${deal.taxes_cad.toFixed(0)}</td><td>${Math.round(deal.cash_cad).toLocaleString()}</td>
-                <td className="value">{cpp.toFixed(2)}{deal.cabin !== 'economy' ? ` (${deal.cpp_raw.toFixed(2)} raw)` : ''}</td>
-                <td>{deal.seats}{deal.direct ? ' · direct' : ''}</td>
-                <td onClick={event => event.stopPropagation()}>
-                  <button
-                    className={`small${deal.status === 'saved' ? ' active' : ''}`}
-                    onClick={() => void changeStatus(deal, 'saved')}
-                  >
-                    {deal.status === 'saved' ? '✓ saved' : 'Save'}
-                  </button>{' '}
-                  <button className="small" onClick={() => void changeStatus(deal, 'dismissed')}>
-                    {deal.status === 'dismissed' ? 'Undo dismiss' : 'Dismiss'}
-                  </button>
-                </td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
+      <div className="deal-list overflow">
+        <table className="deal-list-table">
+          <thead>
+            <tr>
+              <th>Route</th>{sortLabel('Date', 'date')}<th>Cabin</th><th>Program</th>
+              {sortLabel('MR points', 'mr_points')}<th>Taxes</th>{sortLabel('Cash comp', 'cash_cad')}
+              {sortLabel('¢/pt', 'cpp')}{sortLabel('Seats', 'seats')}<th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {deals.map(deal => {
+              const cpp = deal.cabin === 'economy' ? deal.cpp_raw : deal.cpp_conservative
+              return (
+                <tr
+                  key={deal.id}
+                  className={deal.status === 'dismissed' ? 'dimmed' : undefined}
+                  onClick={() => onPick(deal.route, deal.cabin)}
+                >
+                  <td>
+                    <span className="deal-route">
+                      {deal.route}
+                      <span className="deal-dest">{airportLabel(deal.route.split('-')[1])}</span>
+                    </span>
+                  </td>
+                  <td className="deal-num">{deal.date}</td>
+                  <td><span className="chip chip-neutral">{deal.cabin}</span></td>
+                  <td>{deal.program}</td>
+                  <td className="deal-num">
+                    {deal.mr_points.toLocaleString()}{' '}
+                    {deal.mr_points <= meta.pointsBalance && (
+                      <span className="chip chip-green"><span className="dot" />fits</span>
+                    )}
+                  </td>
+                  <td className="deal-num">${deal.taxes_cad.toFixed(0)}</td>
+                  <td className="deal-num">${Math.round(deal.cash_cad).toLocaleString()}</td>
+                  <td>
+                    <span className={'cpp' + (cpp >= GREAT_CPP ? ' cpp-great' : '')}>
+                      {cpp.toFixed(2)}{deal.cabin !== 'economy' ? ` (${deal.cpp_raw.toFixed(2)} raw)` : ''}
+                    </span>
+                  </td>
+                  <td className="deal-num">
+                    {deal.seats}{' '}
+                    {deal.direct && <span className="chip chip-blue">direct</span>}
+                  </td>
+                  <td onClick={event => event.stopPropagation()}>
+                    <span className="deal-actions">
+                      <button
+                        className={`icon-btn${deal.status === 'saved' ? ' saved' : ''}`}
+                        aria-label="Save"
+                        onClick={() => void changeStatus(deal, 'saved')}
+                      >
+                        {deal.status === 'saved' ? '★' : '☆'}
+                      </button>
+                      <button
+                        className="icon-btn"
+                        aria-label="Dismiss"
+                        onClick={() => void changeStatus(deal, 'dismissed')}
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
       {deals.length === 0 && <p>No snapshots yet — wait for the next scan.</p>}
     </div>
   )
