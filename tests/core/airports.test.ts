@@ -46,6 +46,29 @@ describe('searchAirports', () => {
     expect(results[0].code).toBe('YYC')
   })
 
+  it('matches an ISO country code below an exact airport code', () => {
+    const japan = searchAirports('JP')
+    expect(japan).toHaveLength(8)
+    expect(japan.every(r => r.country === 'JP')).toBe(true)
+
+    const exactAirport = searchAirports('YYC')
+    expect(exactAirport[0].code).toBe('YYC')
+  })
+
+  it('matches a country display name and its case-insensitive prefix', () => {
+    for (const query of ['Japan', 'japa']) {
+      const results = searchAirports(query)
+      expect(results).toHaveLength(8)
+      expect(results.every(r => r.country === 'JP')).toBe(true)
+    }
+  })
+
+  it('prefers supplied airport codes within the same rank', () => {
+    const results = searchAirports('JP', 8, new Set(['HND']))
+    expect(results[0].code).toBe('HND')
+    expect(results.some(r => r.code === 'AOJ')).toBe(true)
+  })
+
   it('matches by code prefix', () => {
     const results = searchAirports('LH')
     expect(results.some(r => r.code === 'LHR')).toBe(true)

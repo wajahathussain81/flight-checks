@@ -26,6 +26,7 @@ interface SnapshotRow {
 const rankOf = (d: SnapshotRow): number => (d.cabin === 'economy' ? d.cpp_raw : d.cpp_conservative)
 const destOf = (route: string): string => route.split('-')[1]
 const todayIso = (): string => new Date().toISOString().slice(0, 10)
+const curatedCodes = new Set(Object.keys(AIRPORT_CITY))
 
 const valueOf = (cfg: Config, key: SettingKey): number | string | boolean => {
   switch (key) {
@@ -114,7 +115,7 @@ export function createApp(
 
   app.get('/api/airports', c => {
     const q = c.req.query('q') ?? ''
-    return c.json({ airports: searchAirports(q) })
+    return c.json({ airports: searchAirports(q, 8, curatedCodes) })
   })
 
   app.get('/api/status', c => {

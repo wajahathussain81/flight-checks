@@ -16,6 +16,8 @@ const NAMES: Record<string, string> = {
   CZ: 'Czechia', BE: 'Belgium',
 }
 
+export const COUNTRY_CODES: readonly string[] = Object.keys(NAMES)
+
 export function countryName(isoCode: string): string {
   return NAMES[isoCode] ?? isoCode
 }

@@ -1,4 +1,5 @@
 import data from './airports.data.json' with { type: 'json' }
+import { COUNTRY_CODES, countryName } from './countries.js'
 
 export interface AirportInfo {
   city: string
@@ -20,22 +21,33 @@ const EARTH_RADIUS_KM = 6371
 
 export interface AirportSuggestion { code: string; city: string; country: string; continent: string }
 
-/** Typeahead lookup by IATA code or city, ranked exact-code > code-prefix > city-prefix > city-substring. */
-export function searchAirports(query: string, limit = 8): AirportSuggestion[] {
+/** Typeahead lookup ranked exact-code > country > code-prefix > city-prefix > city-substring. */
+export function searchAirports(
+  query: string,
+  limit = 8,
+  preferred?: ReadonlySet<string>,
+): AirportSuggestion[] {
   const q = query.trim().toLowerCase()
   if (!q) return []
+  const matchedCountries = new Set(COUNTRY_CODES.filter(code =>
+    code.toLowerCase() === q || (q.length >= 2 && countryName(code).toLowerCase().startsWith(q)),
+  ))
   const ranked: Array<[number, AirportSuggestion]> = []
   for (const [code, info] of Object.entries(AIRPORTS)) {
     const lowerCode = code.toLowerCase()
     const lowerCity = info.city.toLowerCase()
     let rank: number | undefined
     if (lowerCode === q) rank = 0
-    else if (lowerCode.startsWith(q)) rank = 1
-    else if (lowerCity.startsWith(q)) rank = 2
-    else if (lowerCity.includes(q)) rank = 3
+    else if (matchedCountries.has(info.country)) rank = 1
+    else if (lowerCode.startsWith(q)) rank = 2
+    else if (lowerCity.startsWith(q)) rank = 3
+    else if (lowerCity.includes(q)) rank = 4
     if (rank !== undefined) ranked.push([rank, { code, city: info.city, country: info.country, continent: info.continent }])
   }
-  ranked.sort((a, b) => a[0] - b[0] || a[1].code.localeCompare(b[1].code))
+  ranked.sort((a, b) =>
+    a[0] - b[0] || Number(preferred?.has(b[1].code) ?? false) - Number(preferred?.has(a[1].code) ?? false) ||
+    a[1].code.localeCompare(b[1].code),
+  )
   return ranked.slice(0, limit).map(([, suggestion]) => suggestion)
 }
 

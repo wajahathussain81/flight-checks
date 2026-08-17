@@ -112,6 +112,12 @@ describe('GET /api/airports', () => {
     expect(airports[0].code).toBe('YYC')
     expect(airports[0]).toMatchObject({ city: expect.any(String), country: expect.any(String), continent: expect.any(String) })
   })
+  it('returns country matches with a curated major airport first', async () => {
+    const { airports } = await (await createApp(db, { env: ENV }).request('/api/airports?q=Japan')).json()
+    expect(airports).toHaveLength(8)
+    expect(airports.every((airport: { country: string }) => airport.country === 'JP')).toBe(true)
+    expect(['HND', 'NRT']).toContain(airports[0].code)
+  })
   it('returns an empty list with no q', async () => {
     const body = await (await createApp(db, { env: ENV }).request('/api/airports')).json()
     expect(body).toEqual({ airports: [] })
