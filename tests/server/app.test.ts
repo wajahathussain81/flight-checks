@@ -100,6 +100,22 @@ describe('GET /api/meta', () => {
     expect(meta.countries).toContain('Japan')
     expect(meta.pointsBalance).toBe(150000)
   })
+  it('includes the configured origin codes', async () => {
+    const meta = await (await createApp(db, { env: ENV }).request('/api/meta')).json()
+    expect(meta.origins).toEqual(['YYC', 'YVR', 'SEA', 'YYZ', 'LAX'])
+  })
+})
+
+describe('GET /api/airports', () => {
+  it('returns matching suggestions', async () => {
+    const { airports } = await (await createApp(db, { env: ENV }).request('/api/airports?q=YYC')).json()
+    expect(airports[0].code).toBe('YYC')
+    expect(airports[0]).toMatchObject({ city: expect.any(String), country: expect.any(String), continent: expect.any(String) })
+  })
+  it('returns an empty list with no q', async () => {
+    const body = await (await createApp(db, { env: ENV }).request('/api/airports')).json()
+    expect(body).toEqual({ airports: [] })
+  })
 })
 
 describe('deal status + shortlist', () => {

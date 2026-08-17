@@ -699,7 +699,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('deals')
   const [picked, setPicked] = useState<{ route: string; cabin: string }>({ route: '', cabin: 'economy' })
   const [banner, setBanner] = useState<string | null>(null)
-  const [meta, setMeta] = useState<Meta>({ countries: [], continents: [], countryContinents: {}, pointsBalance: 0 })
+  const [meta, setMeta] = useState<Meta>({ countries: [], continents: [], countryContinents: {}, pointsBalance: 0, origins: [] })
   const onError = useCallback((error: Error) => setBanner(error.message), [])
   const onPick = useCallback((route: string, cabin: string) => {
     setPicked({ route, cabin })
@@ -736,7 +736,7 @@ export default function App() {
         {tab === 'deals' && (
           <DealsTab meta={meta} onPick={onPick} onError={onError} />
         )}
-        {tab === 'search' && <SearchTab onError={onError} />}
+        {tab === 'search' && <SearchTab onError={onError} origins={meta.origins} />}
         {tab === 'watches' && <WatchesTab meta={meta} onError={onError} />}
         {tab === 'shortlist' && <ShortlistTab onPick={onPick} onError={onError} />}
         {tab === 'history' && <HistoryTab route={picked.route} cabin={picked.cabin} onError={onError} />}
