@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ScoredDeal } from '../core/types.js'
 import { airportLabel } from '../core/regions.js'
+import { countryName } from '../core/countries.js'
 import { explanationMessage, type SearchExplanation } from './searchMessage.js'
 import { fetchAirports, type AirportSuggestion } from './api.js'
 
@@ -14,11 +15,108 @@ const emptyForm = { origin: 'YYC', destination: '', dateFrom: '', dateTo: '', ca
 const toggleItem = (list: string[], item: string): string[] =>
   list.includes(item) ? list.filter(x => x !== item) : [...list, item]
 
-const suggestionLabel = (s: AirportSuggestion): string => `${s.code} — ${s.city}, ${s.country}`
-
 interface SearchResult {
   deals: ScoredDeal[]
   explanation?: SearchExplanation
+}
+
+interface AirportOption {
+  code: string
+  detail: string
+}
+
+function AirportField({ id, label, value, options, onChange }: {
+  id: string
+  label: string
+  value: string
+  options: AirportOption[]
+  onChange: (value: string) => void
+}) {
+  const [focused, setFocused] = useState(false)
+  const [open, setOpen] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(-1)
+  const optionRefs = useRef<Array<HTMLDivElement | null>>([])
+  const listboxId = `${id}-options`
+  const optionsKey = options.map(option => `${option.code}:${option.detail}`).join('|')
+  const panelOpen = focused && open && options.length > 0
+
+  useEffect(() => {
+    setActiveIndex(-1)
+  }, [value, optionsKey])
+
+  useEffect(() => {
+    if (panelOpen && activeIndex >= 0) optionRefs.current[activeIndex]?.scrollIntoView({ block: 'nearest' })
+  }, [activeIndex, panelOpen])
+
+  const selectOption = (option: AirportOption) => {
+    onChange(option.code)
+    setActiveIndex(-1)
+    setOpen(false)
+  }
+
+  return (
+    <div>
+      <label className="field-label" htmlFor={id}>{label}</label>
+      <div className="airport-field">
+        <input
+          className="field"
+          id={id}
+          value={value}
+          style={{ width: '100%' }}
+          role="combobox"
+          autoComplete="off"
+          aria-autocomplete="list"
+          aria-expanded={panelOpen}
+          aria-controls={listboxId}
+          aria-activedescendant={panelOpen && activeIndex >= 0 ? `${listboxId}-${activeIndex}` : undefined}
+          onFocus={() => { setFocused(true); setOpen(true) }}
+          onBlur={() => { setFocused(false); setOpen(false); setActiveIndex(-1) }}
+          onChange={event => {
+            setOpen(true)
+            onChange(event.target.value.toUpperCase())
+          }}
+          onKeyDown={event => {
+            if (event.key === 'ArrowDown' && options.length > 0) {
+              event.preventDefault()
+              setOpen(true)
+              setActiveIndex(current => current < options.length - 1 ? current + 1 : 0)
+            } else if (event.key === 'ArrowUp' && options.length > 0) {
+              event.preventDefault()
+              setOpen(true)
+              setActiveIndex(current => current > 0 ? current - 1 : options.length - 1)
+            } else if (event.key === 'Enter' && panelOpen) {
+              event.preventDefault()
+              if (activeIndex >= 0) selectOption(options[activeIndex])
+            } else if (event.key === 'Escape' && panelOpen) {
+              event.preventDefault()
+              setActiveIndex(-1)
+              setOpen(false)
+            }
+          }}
+        />
+        {panelOpen && (
+          <div className="airport-suggestions" id={listboxId} role="listbox">
+            {options.map((option, index) => (
+              <div
+                className={'airport-suggestion' + (index === activeIndex ? ' active' : '')}
+                id={`${listboxId}-${index}`}
+                key={`${option.code}-${index}`}
+                role="option"
+                aria-selected={index === activeIndex}
+                ref={element => { optionRefs.current[index] = element }}
+                onMouseEnter={() => setActiveIndex(index)}
+                onMouseDown={event => event.preventDefault()}
+                onClick={() => selectOption(option)}
+              >
+                <span className="airport-suggestion-code">{option.code}</span>
+                <span className="airport-suggestion-detail">{option.detail}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 /** Debounced airport typeahead: fetches suggestions for a field's current value, ignoring stale responses. */
@@ -57,9 +155,12 @@ export function SearchTab({ onError, origins }: { onError: (error: Error) => voi
   const destinationSuggestions = useAirportSuggestions(form.destination)
   // Below the 2-char search threshold, fall back to the user's own configured origins as options.
   const originOptions = form.origin.trim().length < 2
-    ? origins.map(code => ({ code, label: airportLabel(code) === code ? code : `${code} — ${airportLabel(code)}` }))
-    : originSuggestions.map(s => ({ code: s.code, label: suggestionLabel(s) }))
-  const destinationOptions = destinationSuggestions.map(s => ({ code: s.code, label: suggestionLabel(s) }))
+    ? origins.map(code => ({ code, detail: airportLabel(code) }))
+    : originSuggestions.map(s => ({ code: s.code, detail: `${s.city}, ${countryName(s.country)}` }))
+  const destinationOptions = destinationSuggestions.map(s => ({
+    code: s.code,
+    detail: `${s.city}, ${countryName(s.country)}`,
+  }))
 
   const submit = async () => {
     setLoading(true)
@@ -100,25 +201,23 @@ export function SearchTab({ onError, origins }: { onError: (error: Error) => voi
       <section className="card" style={{ maxWidth: 560 }}>
         <h2>Search a route</h2>
         <div style={{ display: 'grid', gap: '1rem' }}>
-          <div>
-            <label className="field-label" htmlFor="search-origin">Origin</label>
-            <input className="field" id="search-origin" value={form.origin} style={{ width: '100%' }} list="search-origin-options"
-              onChange={event => {
-                originEdited.current = true
-                setForm(current => ({ ...current, origin: event.target.value.toUpperCase() }))
-              }} />
-            <datalist id="search-origin-options">
-              {originOptions.map(o => <option key={o.code} value={o.code} label={o.label} />)}
-            </datalist>
-          </div>
-          <div>
-            <label className="field-label" htmlFor="search-destination">Destination</label>
-            <input className="field" id="search-destination" value={form.destination} style={{ width: '100%' }} list="search-destination-options"
-              onChange={event => setForm(current => ({ ...current, destination: event.target.value.toUpperCase() }))} />
-            <datalist id="search-destination-options">
-              {destinationOptions.map(o => <option key={o.code} value={o.code} label={o.label} />)}
-            </datalist>
-          </div>
+          <AirportField
+            id="search-origin"
+            label="Origin"
+            value={form.origin}
+            options={originOptions}
+            onChange={value => {
+              originEdited.current = true
+              setForm(current => ({ ...current, origin: value }))
+            }}
+          />
+          <AirportField
+            id="search-destination"
+            label="Destination"
+            value={form.destination}
+            options={destinationOptions}
+            onChange={value => setForm(current => ({ ...current, destination: value }))}
+          />
           <div>
             <label className="field-label" htmlFor="search-from">Travel window</label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>

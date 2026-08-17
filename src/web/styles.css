@@ -334,6 +334,53 @@ th.sortable {
   box-shadow: 0 0 0 3px var(--accent-tint);
 }
 
+.airport-field { position: relative; }
+
+.airport-suggestions {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 0.4rem);
+  inset-inline: 0;
+  max-height: 15rem;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--separator);
+  border-radius: 12px;
+  box-shadow: var(--shadow-window);
+}
+
+.airport-suggestion {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid var(--separator-faint);
+  cursor: pointer;
+}
+
+.airport-suggestion:last-child { border-bottom: none; }
+
+.airport-suggestion:hover,
+.airport-suggestion.active { background: var(--accent-tint); }
+
+.airport-suggestion-code {
+  flex: 0 0 3rem;
+  color: var(--label);
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  font-variant-numeric: tabular-nums;
+}
+
+.airport-suggestion-detail {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--label-2);
+  font-size: 0.85rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .field-search {
   padding-left: 2rem;
   background-repeat: no-repeat;
