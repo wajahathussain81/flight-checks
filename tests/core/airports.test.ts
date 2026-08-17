@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { airportInfo, distanceKm } from '../../src/core/airports.js'
+import { airportInfo, distanceKm, searchAirports } from '../../src/core/airports.js'
 import { AIRPORT_THEMES } from '../../src/core/themes.js'
 
 describe('airportInfo', () => {
@@ -32,6 +32,33 @@ describe('distanceKm', () => {
 
   it('returns undefined when either airport is unknown', () => {
     expect(distanceKm('YYC', 'ZZZ')).toBeUndefined()
+  })
+})
+
+describe('searchAirports', () => {
+  it('returns [] for a blank query', () => {
+    expect(searchAirports('')).toEqual([])
+    expect(searchAirports('   ')).toEqual([])
+  })
+
+  it('ranks an exact code match first', () => {
+    const results = searchAirports('YYC')
+    expect(results[0].code).toBe('YYC')
+  })
+
+  it('matches by code prefix', () => {
+    const results = searchAirports('LH')
+    expect(results.some(r => r.code === 'LHR')).toBe(true)
+  })
+
+  it('matches by city, case-insensitively', () => {
+    const results = searchAirports('london')
+    expect(results.some(r => r.code === 'LHR')).toBe(true)
+  })
+
+  it('respects the limit', () => {
+    const results = searchAirports('A', 3)
+    expect(results.length).toBeLessThanOrEqual(3)
   })
 })
 

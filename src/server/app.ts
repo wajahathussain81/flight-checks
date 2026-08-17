@@ -15,6 +15,7 @@ import nodemailer from 'nodemailer'
 import { estimateCashFares } from '../scanner/pricing.js'
 import { scoreDeal, rankingCpp } from '../core/valuation.js'
 import { explainEmpty } from '../core/coverage.js'
+import { searchAirports } from '../core/airports.js'
 
 interface SnapshotRow {
   id: number; scan_id: number; route: string; date: string; cabin: string; program: string
@@ -107,7 +108,13 @@ export function createApp(
     const countries = [...new Set([...curated, ...seenCountries])].sort()
     const continents = [...new Set(countries.map(continentOf))].sort()
     const countryContinents = Object.fromEntries(countries.map(cn => [cn, continentOf(cn)]))
-    return c.json({ countries, continents, countryContinents, pointsBalance: loadEffectiveConfig(db, env).pointsBalance })
+    const origins = loadEffectiveConfig(db, env).origins.map(o => o.code)
+    return c.json({ countries, continents, countryContinents, pointsBalance: loadEffectiveConfig(db, env).pointsBalance, origins })
+  })
+
+  app.get('/api/airports', c => {
+    const q = c.req.query('q') ?? ''
+    return c.json({ airports: searchAirports(q) })
   })
 
   app.get('/api/status', c => {

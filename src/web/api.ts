@@ -26,7 +26,11 @@ export const fetchStatus = () => get<Status>('/api/status')
 
 export interface Meta {
   countries: string[]; continents: string[]; countryContinents: Record<string, string>; pointsBalance: number
+  origins: string[]
 }
+export interface AirportSuggestion { code: string; city: string; country: string; continent: string }
+export const fetchAirports = (q: string) =>
+  get<{ airports: AirportSuggestion[] }>(`/api/airports?q=${encodeURIComponent(q)}`).then(r => r.airports)
 export interface ShortlistRow { alertKey: string; note: string; current: DealRow | null }
 export type SettingEntry =
   | { value: number | string | boolean; default: number | string | boolean; overridden: boolean }

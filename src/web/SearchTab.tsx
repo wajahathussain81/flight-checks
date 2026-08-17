@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ScoredDeal } from '../core/types.js'
 import { airportLabel } from '../core/regions.js'
 import { explanationMessage, type SearchExplanation } from './searchMessage.js'
+import { fetchAirports, type AirportSuggestion } from './api.js'
 
 const CABINS = ['economy', 'premium', 'business', 'first']
 const GREAT_CPP = 2.5
+const SUGGEST_DEBOUNCE_MS = 200
 const asError = (error: unknown) => error instanceof Error ? error : new Error(String(error))
 
 const emptyForm = { origin: 'YYC', destination: '', dateFrom: '', dateTo: '', cabins: [] as string[] }
@@ -12,16 +14,52 @@ const emptyForm = { origin: 'YYC', destination: '', dateFrom: '', dateTo: '', ca
 const toggleItem = (list: string[], item: string): string[] =>
   list.includes(item) ? list.filter(x => x !== item) : [...list, item]
 
+const suggestionLabel = (s: AirportSuggestion): string => `${s.code} — ${s.city}, ${s.country}`
+
 interface SearchResult {
   deals: ScoredDeal[]
   explanation?: SearchExplanation
 }
 
-export function SearchTab({ onError }: { onError: (error: Error) => void }) {
+/** Debounced airport typeahead: fetches suggestions for a field's current value, ignoring stale responses. */
+function useAirportSuggestions(query: string) {
+  const [suggestions, setSuggestions] = useState<AirportSuggestion[]>([])
+  useEffect(() => {
+    if (query.trim().length < 2) {
+      setSuggestions([])
+      return
+    }
+    let cancelled = false
+    const timer = setTimeout(() => {
+      fetchAirports(query)
+        .then(results => { if (!cancelled) setSuggestions(results) })
+        .catch(() => { /* suggestions are best-effort; ignore failures */ })
+    }, SUGGEST_DEBOUNCE_MS)
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [query])
+  return suggestions
+}
+
+export function SearchTab({ onError, origins }: { onError: (error: Error) => void; origins: string[] }) {
   const [form, setForm] = useState(emptyForm)
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<SearchResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const originEdited = useRef(false)
+
+  // Origin pre-populates from the configured origins once they load, unless the user already touched the field.
+  useEffect(() => {
+    if (originEdited.current) return
+    if (origins.length > 0) setForm(current => ({ ...current, origin: origins[0] }))
+  }, [origins])
+
+  const originSuggestions = useAirportSuggestions(form.origin)
+  const destinationSuggestions = useAirportSuggestions(form.destination)
+  // Below the 2-char search threshold, fall back to the user's own configured origins as options.
+  const originOptions = form.origin.trim().length < 2
+    ? origins.map(code => ({ code, label: airportLabel(code) === code ? code : `${code} — ${airportLabel(code)}` }))
+    : originSuggestions.map(s => ({ code: s.code, label: suggestionLabel(s) }))
+  const destinationOptions = destinationSuggestions.map(s => ({ code: s.code, label: suggestionLabel(s) }))
 
   const submit = async () => {
     setLoading(true)
@@ -64,13 +102,22 @@ export function SearchTab({ onError }: { onError: (error: Error) => void }) {
         <div style={{ display: 'grid', gap: '1rem' }}>
           <div>
             <label className="field-label" htmlFor="search-origin">Origin</label>
-            <input className="field" id="search-origin" value={form.origin} style={{ width: '100%' }}
-              onChange={event => setForm(current => ({ ...current, origin: event.target.value.toUpperCase() }))} />
+            <input className="field" id="search-origin" value={form.origin} style={{ width: '100%' }} list="search-origin-options"
+              onChange={event => {
+                originEdited.current = true
+                setForm(current => ({ ...current, origin: event.target.value.toUpperCase() }))
+              }} />
+            <datalist id="search-origin-options">
+              {originOptions.map(o => <option key={o.code} value={o.code} label={o.label} />)}
+            </datalist>
           </div>
           <div>
             <label className="field-label" htmlFor="search-destination">Destination</label>
-            <input className="field" id="search-destination" value={form.destination} style={{ width: '100%' }}
+            <input className="field" id="search-destination" value={form.destination} style={{ width: '100%' }} list="search-destination-options"
               onChange={event => setForm(current => ({ ...current, destination: event.target.value.toUpperCase() }))} />
+            <datalist id="search-destination-options">
+              {destinationOptions.map(o => <option key={o.code} value={o.code} label={o.label} />)}
+            </datalist>
           </div>
           <div>
             <label className="field-label" htmlFor="search-from">Travel window</label>
